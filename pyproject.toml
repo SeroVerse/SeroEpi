@@ -4,7 +4,7 @@ name = "seroepi"
 dynamic = ["version"]
 description = "A Python library for bacterial sero-epidemiology"
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 keywords = ["bioinformatics", "genomics", "serotyping", "microbiology"]
 license = { file = "LICENSE" }
 classifiers = [
@@ -16,57 +16,75 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Typing :: Typed",
 ]
 dependencies = [
-    "polars>=1.0.0",
-    "patito>=0.8.0",
-    "pyarrow",
     "numpy",
     "scipy",
-    "scikit-learn>=1.8.0",
-    "shapely>=2.1.2",
-    "pycountry>=22.3.5",
-    "joblib>=1.3.2",
-    "networkx>=3.6.1",
+    "scikit-learn",
+    "jax",
+    "numpyro",
+    "polars",
+    "pyarrow",
+    "shapely",
+    "pyogrio>=0.10.0",
+    "pyproj>=3.6.0",
+    "aiohttp>=3.9.0",
+    "joblib>=1.3.0",
+    "pyyaml>=6.0.0",
+    "altair>=6.3.0",
 ]
 
 [project.optional-dependencies]
-models = ["numpyro", "statsmodels"]
-client = ["requests", "urllib3", "orjson"]
-plot = ["plotly>=6.6.0", "kaleido"]
 app = [
-    "seroepi[models,client,plot]",
     "shiny",
+    "shiny-kit",
     "shinywidgets",
     "shinyswatch",
-    "google-genai",
+    "htmltools>=0.7.0",
     "lucide>=1.1.4",
 ]
 all = ["seroepi[app]"]
 
 [dependency-groups]
 docs = [
-    "seroepi[all]",
-    "zensical",
+    "zensical>=0.0.46",
     "mkdocstrings[python]",
+    "zenzic>=0.30.0; python_version < '3.14'",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-testmon>=2.1.0",
+    "pytest-xdist",
+    "cassetter>=0.14.0",
+    "pytest-playwright>=0.10.0",
+    "pytest-cov>=7.1.0",
+]
+typing = [
+    "ty",
+]
+lint = [
+    "ruff",
+    "pre-commit",
 ]
 dev = [
-    {include-group = "docs"},
+    { include-group = "docs" },
+    { include-group = "test" },
+    { include-group = "typing" },
+    { include-group = "lint" },
 ]
 
 [project.urls]
-Homepage = "https://tomdstanton.github.io/SeroEpi/"
-Repository = "https://github.com/tomdstanton/SeroEpi"
-Documentation = "https://tomdstanton.github.io/SeroEpi/"
-"Bug Tracker" = "https://github.com/tomdstanton/SeroEpi/issues"
-Changelog = "https://github.com/tomdstanton/SeroEpi/blob/master/CHANGELOG.md"
+Homepage = "https://seroverse.github.io/seroepi/"
+Repository = "https://github.com/seroverse/seroepi"
+Documentation = "https://seroverse.github.io/seroepi/"
+"Bug Tracker" = "https://github.com/seroverse/seroepi/issues"
+Changelog = "https://github.com/seroverse/seroepi/blob/master/CHANGELOG.md"
 
 [build-system]
 build-backend = "hatchling.build"
@@ -83,25 +101,97 @@ packages = ["src/seroepi"]
 
 [tool.ruff]
 line-length = 120
-exclude = [".agents", ".git", ".venv", "__pycache__", "src/seroepi/_version.py"]
-target-version = "py311"
+force-exclude = true
+exclude = [
+    ".agents",
+    ".git",
+    ".venv",
+    "__pycache__",
+    "src/seroepi/_version.py",
+]
+target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "D"]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
 extend-select = ["ANN", "PYI"]
+ignore = [
+    "ANN401",
+    "E501"
+] # Formatting handles line length
 preview = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ty.environment]
+python-version = "3.12"
+
 [tool.ty.rules]
 missing-type-argument = "error"
 possibly-unresolved-reference = "warn"
 
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["D", "ANN", "E501"]
-"scripts/*" = ["D", "ANN", "E501", "UP031"]
-"app/*" = ["D", "ANN", "E501"]
+[tool.ty.analysis]
+# Mitigates the T@__call__ leak on Altair's MarkMethodMixin
+replace-imports-with-any = ["altair.**"]
 
-[tool.karva.profile.default.coverage]
-branch = true
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+norecursedirs = [".venv", "dist", "build", ".agy", ".git", ".ruff_cache"]
+# Token-saving flags: suppress header/summary noise, truncate tracebacks, silence passing output
+addopts = "-q --tb=short --show-capture=no --browser-channel chrome-beta --cov=src --cov-report=term-missing --cov-branch -n auto"
+markers = [
+    "max_span_ms(span_name, max_duration_ms): Assert span duration budget.",
+]
+
+[tool.coverage.run]
+disable_warnings = ["no-data-collected"]
+
+[tool.zenzic]
+strict = false
+fail_under = 60
+
+[tool.zenzic.build_context]
+engine         = "zensical"
+base_url       = "/"
+default_locale = "en"
+
+[tool.zenzic.governance]
+suppression_cap           = 30
+suppression_cap_fail_hard = true
+brand_obsolescence = []
+
+[tool.zenzic.governance.directory_policies]
+"docs/**" = ["Z301"]  # mkdocstrings cross-references
+"docs/reference/**" = ["Z411", "Z502"]  # autogenerated API stubs
+"docs/releases.md" = ["Z411", "Z512", "Z513", "Z515"]  # GitHub release notes
+"docs/conduct.md" = ["Z411", "Z502"]  # community stubs
+"docs/contributing.md" = ["Z411", "Z502"]  # community stubs
+"docs/tutorials/**" = ["Z411"]
+"docs/app.md" = ["Z411"]
+
+[tool.zenzic.policies]
+required_frontmatter_keys = []
+forbidden_external_domains = []
+forbidden_frontmatter_keys = []
+allowed_external_domains = []
+required_url_schemes = []
+forbidden_content_patterns = []
+required_heading_patterns = []
+max_document_complexity = 0
+weasel_words = []
+enable_passive_voice_check = false
+
+[tool.zenzic.network]
+cache_ttl_hours = 24

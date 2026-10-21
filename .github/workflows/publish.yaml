@@ -17,11 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/pyeris # Replace with your actual PyPI package name
+      url: https://pypi.org/p/seroepi
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # hatch-vcs needs the git history/tags to automatically determine the version number
           fetch-depth: 0
@@ -30,15 +30,11 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Build the package
         # Since you are a uv-powered pipeline, we use uv to build the sdist and wheel
-        run: uv build
+        run: uv build --no-sources
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

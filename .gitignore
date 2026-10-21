@@ -53,7 +53,10 @@ coverage.xml
 *.py.cover
 .hypothesis/
 .pytest_cache/
+.testmondata*
 cover/
+.karva/
+.karva_cache/
 
 # Translations
 *.mo
@@ -212,3 +215,5 @@ __marimo__/
 
 # MacOS
 *.DS
+
+src/seroepi/app/old__for_ref_only

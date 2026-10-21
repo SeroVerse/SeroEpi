@@ -1,0 +1,105 @@
+name: Deploy Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "pyproject.toml"
+      - "src/**"
+      - ".github/workflows/hf-space.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: "hf-space"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-space:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.14"
+
+      - name: Stage and upload Gradio-SDK Space to seroverse/seroepi
+        env:
+          HF_SPACE_ID: "seroverse/seroepi"
+        run: |
+          rm -rf .hf_space_staging
+          mkdir -p .hf_space_staging
+          cp LICENSE .hf_space_staging/
+          cp -R src/seroepi .hf_space_staging/seroepi
+
+          cat << 'EOF' > .hf_space_staging/README.md
+          ---
+          title: SeroEpi
+          emoji: 🦠
+          colorFrom: purple
+          colorTo: blue
+          sdk: gradio
+          python_version: "3.13"
+          app_file: app.py
+          app_port: 7860
+          pinned: false
+          license: gpl-3.0
+          short_description: Library for genomic sero-epidemiology
+          ---
+
+          EOF
+          cat README.md >> .hf_space_staging/README.md
+
+          cat << 'EOF' > .hf_space_staging/requirements.txt
+          gradio
+          uvicorn
+          shiny
+          shiny-kit
+          shinywidgets
+          shinyswatch
+          htmltools>=0.7.0
+          lucide>=1.1.4
+          numpy
+          scipy
+          scikit-learn
+          jax
+          numpyro
+          polars
+          pyarrow
+          shapely
+          pyogrio>=0.10.0
+          pyproj>=3.6.0
+          aiohttp>=3.9.0
+          joblib>=1.3.0
+          pyyaml>=6.0.0
+          altair>=6.3.0
+          EOF
+
+          cat << 'EOF' > .hf_space_staging/app.py
+          """Hugging Face Spaces entrypoint serving the SeroEpi Shiny ASGI app on port 7860."""
+
+          import uvicorn
+
+          from seroepi.app.app import app
+          from seroepi.country import CountryData
+          from seroepi.examples import KlebnetNeonatalSepsis
+
+          if __name__ == "__main__":
+              CountryData.load_built()
+              KlebnetNeonatalSepsis.load_built()
+              uvicorn.run(app, host="0.0.0.0", port=7860)
+          EOF
+
+          uvx --from huggingface_hub hf upload "$HF_SPACE_ID" .hf_space_staging . \
+            --repo-type space \
+            --delete "*" \
+            --commit-message "Sync SeroEpi Shiny app from GitHub Actions (${{ github.sha }})"
+          rm -rf .hf_space_staging

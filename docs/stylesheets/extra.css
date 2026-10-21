@@ -1,0 +1,777 @@
+/* ==========================================================================
+   SeroVerse Unified Zensical Theme — Canonical Stylesheet
+   Source of truth: seroverse.github.io/docs/stylesheets/extra.css
+   Propagated to:   ../SeroGen, ../KBank, ../SeroEpi via scripts/sync_theme.py
+   ========================================================================== */
+
+:root {
+  /* Default / SeroVerse Hub Full-Spectrum Palette */
+  --sv-gradient: linear-gradient(135deg, #06b6d4 0%, #2563eb 52%, #7c3aed 100%);
+  --sv-glow: rgba(14, 165, 233, 0.16);
+  --sv-border: rgba(14, 165, 233, 0.26);
+  --sv-surface-tint: linear-gradient(145deg, rgba(6, 182, 212, 0.10), rgba(59, 130, 246, 0.06));
+  --sv-accent: #0284c7;
+  --sv-accent-soft: rgba(14, 165, 233, 0.12);
+
+  /* Per-pillar palette tokens (for cards and pillar-specific overrides) */
+  --sv-serogen-gradient: linear-gradient(135deg, #0d9488 0%, #0284c7 55%, #6366f1 100%);
+  --sv-serogen-glow: rgba(14, 165, 233, 0.16);
+  --sv-serogen-border: rgba(13, 148, 136, 0.32);
+  --sv-serogen-accent: #0d9488;
+
+  --sv-kbank-gradient: linear-gradient(135deg, #059669 0%, #10b981 52%, #d97706 100%);
+  --sv-kbank-glow: rgba(16, 185, 129, 0.16);
+  --sv-kbank-border: rgba(16, 185, 129, 0.32);
+  --sv-kbank-accent: #10b981;
+
+  --sv-seroepi-gradient: linear-gradient(135deg, #7c3aed 0%, #6366f1 52%, #db2777 100%);
+  --sv-seroepi-glow: rgba(139, 92, 246, 0.16);
+  --sv-seroepi-border: rgba(139, 92, 246, 0.32);
+  --sv-seroepi-accent: #8b5cf6;
+
+  /* Backward-compatible aliases for SeroGen */
+  --serogen-gradient: var(--sv-gradient);
+  --serogen-glow: var(--sv-glow);
+}
+
+/* Pillar-specific root overrides */
+:root[data-sv-pillar="serogen"] {
+  --sv-gradient: var(--sv-serogen-gradient);
+  --sv-glow: var(--sv-serogen-glow);
+  --sv-border: var(--sv-serogen-border);
+  --sv-surface-tint: linear-gradient(145deg, rgba(13, 148, 136, 0.10), rgba(2, 132, 199, 0.06));
+  --sv-accent: var(--sv-serogen-accent);
+  --sv-accent-soft: rgba(13, 148, 136, 0.12);
+}
+
+:root[data-sv-pillar="kbank"] {
+  --sv-gradient: var(--sv-kbank-gradient);
+  --sv-glow: var(--sv-kbank-glow);
+  --sv-border: var(--sv-kbank-border);
+  --sv-surface-tint: linear-gradient(145deg, rgba(16, 185, 129, 0.10), rgba(217, 119, 6, 0.06));
+  --sv-accent: var(--sv-kbank-accent);
+  --sv-accent-soft: rgba(16, 185, 129, 0.12);
+}
+
+:root[data-sv-pillar="seroepi"] {
+  --sv-gradient: var(--sv-seroepi-gradient);
+  --sv-glow: var(--sv-seroepi-glow);
+  --sv-border: var(--sv-seroepi-border);
+  --sv-surface-tint: linear-gradient(145deg, rgba(124, 58, 237, 0.10), rgba(219, 39, 119, 0.06));
+  --sv-accent: var(--sv-seroepi-accent);
+  --sv-accent-soft: rgba(139, 92, 246, 0.12);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0b1120;
+  --md-default-bg-color--light: #111827;
+  --md-code-bg-color: #0f172a;
+  --sv-glow: rgba(56, 189, 248, 0.18);
+}
+
+:root[data-sv-pillar="kbank"] [data-md-color-scheme="slate"],
+[data-sv-pillar="kbank"][data-md-color-scheme="slate"] {
+  --sv-glow: rgba(52, 211, 153, 0.18);
+}
+
+:root[data-sv-pillar="seroepi"] [data-md-color-scheme="slate"],
+[data-sv-pillar="seroepi"][data-md-color-scheme="slate"] {
+  --sv-glow: rgba(167, 139, 250, 0.18);
+}
+
+/* ==========================================================================
+   1. Top SeroVerse Ecosystem Switcher Bar
+   ========================================================================== */
+
+.sv-ecosystem-bar {
+  background: #070c17;
+  color: #cbd5e1;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  font-size: 0.76rem;
+  line-height: 1.2;
+  z-index: 5;
+  position: relative;
+}
+
+.sv-eco-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.38rem 0.8rem;
+}
+
+.sv-eco-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: #f8fafc !important;
+  text-decoration: none !important;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.sv-eco-brand svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #38bdf8;
+  fill: currentColor;
+}
+
+.sv-eco-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.sv-eco-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.sv-eco-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.24rem 0.62rem;
+  border-radius: 999px;
+  color: #94a3b8 !important;
+  text-decoration: none !important;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.sv-eco-pill svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+}
+
+.sv-eco-pill .sv-eco-sub {
+  font-weight: 400;
+  font-size: 0.68rem;
+  opacity: 0.72;
+}
+
+@media (max-width: 680px) {
+  .sv-eco-pill .sv-eco-sub,
+  .sv-eco-tag {
+    display: none;
+  }
+}
+
+.sv-eco-pill:hover {
+  color: #f8fafc !important;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.sv-eco-pill--seroverse.is-active {
+  color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.sv-eco-pill--serogen.is-active {
+  color: #2dd4bf !important;
+  background: rgba(20, 184, 166, 0.14);
+  border-color: rgba(20, 184, 166, 0.38);
+}
+
+.sv-eco-pill--kbank.is-active {
+  color: #34d399 !important;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.38);
+}
+
+.sv-eco-pill--seroepi.is-active {
+  color: #c084fc !important;
+  background: rgba(168, 85, 247, 0.14);
+  border-color: rgba(168, 85, 247, 0.38);
+}
+
+.sv-eco-pill--app {
+  color: #e2e8f0 !important;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.32), rgba(14, 165, 233, 0.32));
+  border-color: rgba(139, 92, 246, 0.42);
+}
+
+.sv-eco-pill--app:hover {
+  border-color: rgba(56, 189, 248, 0.65);
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   2. Hero Banner (.sv-hero & .serogen-hero)
+   ========================================================================== */
+
+.sv-hero,
+.serogen-hero {
+  position: relative;
+  padding: 2.5rem 2.3rem;
+  margin-bottom: 2.2rem;
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 85% 15%, var(--sv-glow), transparent 55%),
+    var(--sv-surface-tint);
+  border: 1px solid var(--sv-border);
+  backdrop-filter: blur(10px);
+  container-type: inline-size;
+}
+
+.sv-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.28rem 0.72rem;
+  margin-bottom: 0.85rem;
+  border-radius: 999px;
+  background: var(--sv-accent-soft);
+  color: var(--sv-accent);
+  border: 1px solid var(--sv-border);
+}
+
+[data-md-color-scheme="slate"] .sv-hero-eyebrow {
+  color: #38bdf8;
+}
+
+:root[data-sv-pillar="kbank"] [data-md-color-scheme="slate"] .sv-hero-eyebrow,
+[data-sv-pillar="kbank"][data-md-color-scheme="slate"] .sv-hero-eyebrow {
+  color: #34d399;
+}
+
+:root[data-sv-pillar="seroepi"] [data-md-color-scheme="slate"] .sv-hero-eyebrow,
+[data-sv-pillar="seroepi"][data-md-color-scheme="slate"] .sv-hero-eyebrow {
+  color: #c084fc;
+}
+
+.sv-hero h1,
+.serogen-hero h1 {
+  margin: 0 0 0.65rem 0 !important;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  background: var(--sv-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sv-hero p,
+.serogen-hero p {
+  font-size: 1.05rem;
+  line-height: 1.65;
+  margin-bottom: 1.2rem;
+  opacity: 0.92;
+}
+
+.sv-badges,
+.serogen-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.sv-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.25rem;
+}
+
+.sv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.6rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease, border-color 0.16s ease;
+}
+
+.sv-btn--primary {
+  color: #ffffff !important;
+  background: var(--sv-gradient);
+  box-shadow: 0 6px 18px -5px var(--sv-glow);
+}
+
+.sv-btn--primary:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.sv-btn--secondary {
+  color: var(--md-default-fg-color) !important;
+  background: rgba(148, 163, 184, 0.10);
+  border: 1px solid var(--sv-border);
+}
+
+.sv-btn--secondary:hover {
+  transform: translateY(-1px);
+  border-color: var(--sv-accent);
+  background: var(--sv-accent-soft);
+}
+
+/* Hero Metrics Strip (Size-Aware Container Query + Media Query Fallback) */
+.sv-stat-strip {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+@media (min-width: 640px) {
+  .sv-stat-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .sv-stat-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@supports (container-type: inline-size) {
+  @container (min-width: 520px) {
+    .sv-stat-strip {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @container (min-width: 820px) {
+    .sv-stat-strip {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+}
+
+.sv-stat-item {
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.65rem;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+[data-md-color-scheme="slate"] .sv-stat-item {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.sv-stat-value {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: var(--sv-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sv-stat-label {
+  display: block;
+  font-size: 0.76rem;
+  opacity: 0.82;
+  margin-top: 0.15rem;
+}
+
+/* ==========================================================================
+   3. Three-Pillar Showcase Grid & Cards (.sv-pillar-grid / .sv-pillar-card)
+   ========================================================================== */
+
+.sv-pillar-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.15rem;
+  margin: 1.4rem 0 2rem 0;
+}
+
+@media (min-width: 900px) {
+  .sv-pillar-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.sv-pillar-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.4rem 1.35rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: var(--md-default-bg-color--light);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.sv-pillar-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--pillar-gradient, var(--sv-gradient));
+}
+
+.sv-pillar-card--serogen {
+  --pillar-gradient: var(--sv-serogen-gradient);
+  --pillar-glow: var(--sv-serogen-glow);
+  --pillar-border: var(--sv-serogen-border);
+  --pillar-accent: #0d9488;
+}
+
+.sv-pillar-card--kbank {
+  --pillar-gradient: var(--sv-kbank-gradient);
+  --pillar-glow: var(--sv-kbank-glow);
+  --pillar-border: var(--sv-kbank-border);
+  --pillar-accent: #10b981;
+}
+
+.sv-pillar-card--seroepi {
+  --pillar-gradient: var(--sv-seroepi-gradient);
+  --pillar-glow: var(--sv-seroepi-glow);
+  --pillar-border: var(--sv-seroepi-border);
+  --pillar-accent: #8b5cf6;
+}
+
+.sv-pillar-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--pillar-border, var(--sv-border));
+  box-shadow: 0 14px 32px -12px var(--pillar-glow, var(--sv-glow));
+}
+
+.sv-pillar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.sv-pillar-title {
+  font-size: 1.22rem;
+  font-weight: 800;
+  margin: 0 !important;
+  letter-spacing: -0.02em;
+}
+
+.sv-pillar-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--pillar-accent, var(--sv-accent));
+  border: 1px solid var(--pillar-border, var(--sv-border));
+}
+
+.sv-pillar-desc {
+  font-size: 0.88rem;
+  line-height: 1.58;
+  opacity: 0.9;
+  margin-bottom: 0.9rem;
+}
+
+.sv-pillar-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.sv-metric-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.18rem 0.52rem;
+  border-radius: 0.4rem;
+  background: rgba(148, 163, 184, 0.10);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.sv-pillar-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  margin-top: auto;
+}
+
+.sv-pillar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.34rem 0.7rem;
+  border-radius: 0.45rem;
+  text-decoration: none !important;
+  color: #ffffff !important;
+  background: var(--pillar-gradient, var(--sv-gradient));
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sv-pillar-link:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.sv-pillar-link--ghost {
+  background: transparent;
+  color: var(--md-default-fg-color) !important;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+}
+
+.sv-pillar-link--ghost:hover {
+  border-color: var(--pillar-accent, var(--sv-accent));
+  background: rgba(148, 163, 184, 0.08);
+}
+
+/* ==========================================================================
+   4. Standard Zensical Grid Cards (.grid.cards) with :has() & Fallback
+   ========================================================================== */
+
+.grid.cards > ul > li {
+  border-radius: 0.75rem !important;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.grid.cards > ul > li:hover {
+  transform: translateY(-2px);
+  border-color: var(--sv-border) !important;
+  box-shadow: 0 10px 26px -10px var(--sv-glow);
+}
+
+/* Content-based styling via :has() for cards containing code or action links */
+.grid.cards > ul > li:has(a.md-button, .sv-pillar-link) {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+@supports not selector(:has(*)) {
+  .grid.cards > ul > li.has-cta {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+}
+
+/* API Reference Symbol Headings */
+.doc-heading {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  padding-bottom: 0.35rem;
+}
+
+/* ==========================================================================
+   5. Marimo Slide Deck Action Bar & 16:9 Responsive Frame
+   ========================================================================== */
+
+.sv-deck-toolbar,
+.serogen-deck-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.1rem;
+  margin: 1.25rem 0 0.75rem 0;
+  border-radius: 0.75rem;
+  background: var(--sv-surface-tint);
+  border: 1px solid var(--sv-border);
+}
+
+.sv-deck-toolbar .deck-meta,
+.serogen-deck-toolbar .deck-meta {
+  font-size: 0.85rem;
+  opacity: 0.88;
+}
+
+.sv-deck-actions,
+.serogen-deck-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sv-deck-btn,
+.serogen-deck-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.9rem;
+  border-radius: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  color: #ffffff !important;
+  background: var(--sv-gradient);
+  box-shadow: 0 4px 12px -4px var(--sv-glow);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.sv-deck-btn:hover,
+.serogen-deck-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.94;
+}
+
+.sv-slide-frame,
+.serogen-slide-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 560px;
+  margin: 0.5rem 0 2rem 0;
+  border-radius: 0.85rem;
+  overflow: hidden;
+  border: 1px solid var(--sv-border);
+  box-shadow: 0 14px 34px -12px var(--sv-glow);
+  background: #0b1120;
+}
+
+.sv-slide-frame iframe,
+.serogen-slide-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+/* ==========================================================================
+   6. Interactive Web Application Frame (.sv-app-frame & .seroepi-app-frame)
+   ========================================================================== */
+
+.sv-app-toolbar,
+.seroepi-app-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 0.65rem;
+  background: var(--sv-surface-tint);
+  border: 1px solid var(--sv-border);
+  font-size: 0.85rem;
+}
+
+.sv-app-links,
+.seroepi-app-links {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.sv-app-frame,
+.seroepi-app-frame {
+  width: 100%;
+  height: calc(100vh - 10rem);
+  min-height: 760px;
+  border: 1px solid var(--sv-border);
+  border-radius: 0.75rem;
+  box-shadow: 0 14px 34px -12px var(--sv-glow);
+  background: var(--md-default-bg-color);
+}
+
+/* ==========================================================================
+   7. Unified SeroVerse Ecosystem Footer
+   ========================================================================== */
+
+.sv-footer-ecosystem {
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  background: #070c17;
+  color: #94a3b8;
+  padding: 2rem 0 1.25rem 0;
+}
+
+.sv-footer-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 0 0.8rem;
+}
+
+@media (min-width: 768px) {
+  .sv-footer-grid {
+    grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  }
+}
+
+.sv-footer-col h4 {
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.65rem 0;
+}
+
+.sv-footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #f8fafc !important;
+  font-size: 0.98rem;
+  font-weight: 800;
+  text-decoration: none !important;
+  margin-bottom: 0.5rem;
+}
+
+.sv-footer-brand svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #38bdf8;
+  fill: currentColor;
+}
+
+.sv-footer-tagline {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #94a3b8;
+  margin: 0;
+  max-width: 34ch;
+}
+
+.sv-footer-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.sv-footer-list li {
+  margin: 0 0 0.38rem 0 !important;
+  font-size: 0.78rem;
+}
+
+.sv-footer-list a {
+  color: #94a3b8 !important;
+  text-decoration: none !important;
+  transition: color 0.15s ease;
+}
+
+.sv-footer-list a:hover {
+  color: #38bdf8 !important;
+}

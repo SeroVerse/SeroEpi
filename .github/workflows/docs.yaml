@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   # -----------------------------------------------------
-  # JOB 1: Build the site and upload the artifact
+  # JOB 1: Build Zensical documentation artifact
   # -----------------------------------------------------
   build:
     runs-on: ubuntu-latest
@@ -29,17 +29,13 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Install project and dependencies
-        run: uv sync --all-groups
+        run: uv sync --no-sources --all-groups --all-extras
 
       - name: Build documentation
-        run: make docs
+        run: uv run --no-sources --group docs zensical build --clean
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v4
