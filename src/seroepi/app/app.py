@@ -16,6 +16,7 @@ from seroepi.aggregate import Aggregator  # noqa: E402
 from seroepi.app.dataset.loader import DatasetLoader  # noqa: E402
 from seroepi.app.dataset.tab import DatasetTab  # noqa: E402
 from seroepi.app.estimation import EstimationTab  # noqa: E402
+from seroepi.app.footer import app_footer  # noqa: E402
 from seroepi.app.formulation import FormulationTab  # noqa: E402
 from seroepi.app.home import HomeTab  # noqa: E402
 from seroepi.app.models import SessionState  # noqa: E402
@@ -28,8 +29,9 @@ def app_ui() -> shiny_ui.Tag:
     """Constructs the top-level navbar UI layout for the SeroEpi application.
 
     Composes `HomeTab`, `DatasetTab`, `EstimationTab`, and `FormulationTab` inside
-    a `shiny.ui.page_navbar` container alongside reactive artifact registry badges
-    and a Bootstrap light/dark mode switch.
+    a `shiny.ui.page_navbar` container alongside reactive artifact registry badges,
+    a Bootstrap light/dark mode switch, and the `importlib.metadata`-backed
+    SeroVerse footer.
 
     Returns:
         Top-level `shiny.ui.Tag` representing the full application UI.
@@ -51,10 +53,11 @@ def app_ui() -> shiny_ui.Tag:
         ),
         id="main_nav",
         title=shiny_ui.span(
-            shiny_ui.span(Icon.lucide("orbit", size=20), class_="sv-brand-icon d-inline-flex"),
+            shiny_ui.span(Icon.lucide("chart-network", size=20), class_="sv-brand-icon d-inline-flex"),
             shiny_ui.strong("SeroEpi"),
             class_="d-inline-flex align-items-center gap-1",
         ),
+        footer=app_footer(),
         fillable=False,
     )
 
