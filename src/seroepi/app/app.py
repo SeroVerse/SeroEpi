@@ -1,20 +1,27 @@
 """Main PyShiny application entrypoint for SeroEpi."""
 
+import sys
+from pathlib import Path
+
 from htmltools import TagChild
 from shiny import App, Inputs, Outputs, Session, reactive, render, req
 from shiny import ui as shiny_ui
 from shiny_kit.ui import Icon
 
-from seroepi.aggregate import Aggregator
-from seroepi.app.dataset.loader import DatasetLoader
-from seroepi.app.dataset.tab import DatasetTab
-from seroepi.app.estimation import EstimationTab
-from seroepi.app.formulation import FormulationTab
-from seroepi.app.home import HomeTab
-from seroepi.app.models import SessionState
-from seroepi.estimators.formulation import Formulation
-from seroepi.estimators.unpooled import UnpooledEstimator
-from seroepi.variables import Spatial, Target
+_SRC_DIR = str(Path(__file__).resolve().parents[2])
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
+
+from seroepi.aggregate import Aggregator  # noqa: E402
+from seroepi.app.dataset.loader import DatasetLoader  # noqa: E402
+from seroepi.app.dataset.tab import DatasetTab  # noqa: E402
+from seroepi.app.estimation import EstimationTab  # noqa: E402
+from seroepi.app.formulation import FormulationTab  # noqa: E402
+from seroepi.app.home import HomeTab  # noqa: E402
+from seroepi.app.models import SessionState  # noqa: E402
+from seroepi.estimators.formulation import Formulation  # noqa: E402
+from seroepi.estimators.unpooled import UnpooledEstimator  # noqa: E402
+from seroepi.variables import Spatial, Target  # noqa: E402
 
 
 def app_ui() -> shiny_ui.Tag:
