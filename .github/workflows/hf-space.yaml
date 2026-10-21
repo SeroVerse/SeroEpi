@@ -34,6 +34,7 @@ jobs:
       - name: Stage and upload Gradio-SDK Space to seroverse/seroepi
         env:
           HF_SPACE_ID: "seroverse/seroepi"
+          HF_OIDC_RESOURCE: "spaces/seroverse/seroepi"
         run: |
           rm -rf .hf_space_staging
           mkdir -p .hf_space_staging
@@ -98,7 +99,7 @@ jobs:
               uvicorn.run(app, host="0.0.0.0", port=7860)
           EOF
 
-          uvx --from huggingface_hub hf upload "$HF_SPACE_ID" .hf_space_staging . \
+          uvx --from "huggingface_hub>=1.19.0" hf upload "$HF_SPACE_ID" .hf_space_staging . \
             --repo-type space \
             --delete "*" \
             --commit-message "Sync SeroEpi Shiny app from GitHub Actions (${{ github.sha }})"
