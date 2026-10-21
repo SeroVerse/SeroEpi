@@ -74,7 +74,7 @@ class Dataset(DataModel):
 
     @property
     def pure_traits(self) -> tuple[Trait, ...]:
-        """Tuple of antigenic/serotype `Trait` variables (excluding `Resistance` and `Virulence`)."""
+        """Tuple of primary `Trait` variables (excluding `Resistance` and `Virulence`)."""
         return tuple(
             v
             for v in self.variables.values()
@@ -112,7 +112,7 @@ class Dataset(DataModel):
         """
         groups: dict[str, dict[str, str]] = {
             "Spatial & Temporal": {},
-            "Traits (Serotypes / Antigens)": {},
+            "Traits (Serotypes / Targets)": {},
             "Resistance & Virulence": {},
             "Taxonomy & Lineages": {},
             "Counts & Metrics": {},
@@ -129,7 +129,7 @@ class Dataset(DataModel):
             elif isinstance(var, (Resistance, Virulence)):
                 groups["Resistance & Virulence"][col] = lbl
             elif isinstance(var, Trait):
-                groups["Traits (Serotypes / Antigens)"][col] = lbl
+                groups["Traits (Serotypes / Targets)"][col] = lbl
             elif isinstance(var, Taxonomy):
                 groups["Taxonomy & Lineages"][col] = lbl
             elif isinstance(var, (Count, Metric)):

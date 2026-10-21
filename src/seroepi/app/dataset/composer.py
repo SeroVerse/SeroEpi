@@ -156,7 +156,7 @@ class TargetComposer(Component[SessionState]):
 
     @bind_effect()
     def _auto_seed_default_criterion(self) -> None:
-        """Seeds the first antigenic `Trait` into `staged_criteria` when a dataset is first loaded."""
+        """Seeds the first primary `Trait` into `staged_criteria` when a dataset is first loaded."""
         ds = self.state.raw_dataset
         if ds is None:
             return
@@ -312,7 +312,11 @@ class TargetComposer(Component[SessionState]):
 
         _, stats = target.evaluate(ds, top_n=25)
         mode_lbl = "Compositional (Multi-Category)" if stats["is_compositional"] else "Binary Endpoint (+/-)"
-        mode_cls = "bg-info-subtle text-info-emphasis" if stats["is_compositional"] else "bg-warning-subtle text-dark"
+        mode_cls = (
+            "bg-info-subtle text-info-emphasis"
+            if stats["is_compositional"]
+            else "bg-warning-subtle text-warning-emphasis"
+        )
 
         return shiny_ui.div(
             shiny_ui.span(f"ID: {target.name}", class_="badge bg-dark me-1 p-2"),

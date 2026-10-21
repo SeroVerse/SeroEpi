@@ -10,9 +10,9 @@ icon: lucide/chart-network
 
 # SeroEpi
 
-**Precision antigen selection, hierarchical Bayesian prevalence modelling, and multi-valent vaccine formulation from genomic surveillance.**
+**Precision target selection, hierarchical Bayesian prevalence modelling, and multi-valent formulation design from genomic surveillance.**
 
-Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms pathogen isolate collections and [`SeroGen`](https://seroverse.github.io/SeroGen/) / [`KBank`](https://seroverse.github.io/KBank/) serotype calls into stratified prevalence estimates, spatial choropleths, and cross-validated vaccine or phage-cocktail formulations.
+Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms pathogen isolate collections and [`SeroGen`](https://seroverse.github.io/SeroGen/) / [`KBank`](https://seroverse.github.io/KBank/) trait calls into stratified prevalence estimates, spatial choropleths, and cross-validated multi-valent formulations.
 
 <div class="sv-badges">
   <img class="off-glb" src="https://img.shields.io/badge/python-3.12%2B-8b5cf6?logo=python&logoColor=white" alt="Python 3.12+" />
@@ -39,7 +39,7 @@ Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms p
 
     ---
 
-    Ingests Pathogenwatch isolate collections (`PathogenwatchClient`) and UN/World Bank demographic indicators (`WorldBankClient`), enforces typed `Variable` contracts (`Spatial`, `Temporal`, `Trait`, `Target`), and composes multi-antigen `Criterion` targets.
+    Ingests Pathogenwatch isolate collections (`PathogenwatchClient`) and UN/World Bank demographic indicators (`WorldBankClient`), enforces typed `Variable` contracts (`Spatial`, `Temporal`, `Trait`, `Target`), and composes multi-variable `Criterion` targets.
 
 -   :lucide-layers: **Stratified Aggregation & Partial Pooling (`seroepi.aggregate`, `seroepi.estimators`)**
 
@@ -47,11 +47,11 @@ Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms p
 
     Aggregates isolate counts across geographic, temporal, and clinical strata (`Aggregator`) and fits Unpooled (Wilson/Clopper-Pearson/Jeffreys), Bootstrap, or `JAX`/`NumPyro` Hierarchical Bayesian (`MCMC` NUTS and `SVI`) Binomial and Beta-Binomial models.
 
--   :lucide-shield-check: **LOSO-Validated Vaccine Formulation (`seroepi.estimators.formulation`)**
+-   :lucide-shield-check: **LOSO-Validated Formulation Design (`seroepi.estimators.formulation`)**
 
     ---
 
-    Ranks antigenic targets under pooled or equal-stratum weights, controls Bayesian or Benjamini-Hochberg False Discovery Rates against burden thresholds, and evaluates held-out geographic coverage via Leave-One-Stratum-Out (`loso`) cross-validation.
+    Ranks candidate targets under pooled or equal-stratum weights, controls Bayesian or Benjamini-Hochberg False Discovery Rates against burden thresholds, and evaluates held-out geographic coverage via Leave-One-Stratum-Out (`loso`) cross-validation.
 
 -   :lucide-map: **Publication-Ready Visuals & Live PyShiny App (`seroepi.plotting`, `seroepi.app`)**
 

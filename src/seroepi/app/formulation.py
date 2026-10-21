@@ -681,7 +681,7 @@ class FormulationComparisonPanel(Component[SessionState]):
                         "Switch to 'Saved Formulations / Estimators' or fit a stratified Estimator first.",
                         class_="small text-muted",
                     ),
-                    class_="p-2 bg-light rounded border",
+                    class_="p-2 bg-body-tertiary rounded border",
                 )
 
             cur_est = self.val("comp_cohort_est", isolate=True)

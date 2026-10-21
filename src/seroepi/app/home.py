@@ -1,4 +1,4 @@
-"""Full-bleed, theme-aware Hero & Home Tab module integrated with `BasePlotter`."""
+"""Full-bleed, SeroVerse-themed Hero & Home Tab module integrated with `BasePlotter`."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -23,7 +23,7 @@ from seroepi.examples import ExampleDataset, KlebnetNeonatalSepsis
 from seroepi.plotting.bar import BarPlotter
 from seroepi.plotting.base import BasePlotter
 
-_ = KlebnetNeonatalSepsis  # TODO: What does ths do?
+_ = KlebnetNeonatalSepsis  # Ensure subclass registration for ExampleDataset.__subclasses__()
 
 # ---------------------------------------------------------------------------
 # 1. Data-Oriented Configuration & Reactive Contracts
@@ -31,14 +31,28 @@ _ = KlebnetNeonatalSepsis  # TODO: What does ths do?
 
 
 @dataclass(frozen=True, slots=True)
+class HeroStatSpec:
+    """Static specification for a metric tile in the `.sv-stat-strip` hero strip.
+
+    Attributes:
+        value (str): Highlighted headline metric value (rendered with gradient text).
+        label (str): Descriptive caption displayed beneath `value`.
+    """
+
+    value: str
+    label: str
+
+
+@dataclass(frozen=True, slots=True)
 class WorkflowStepSpec:
-    """Static specification for a workflow card below the Hero section.
+    """Static specification for a SeroVerse pillar/workflow card below the Hero section.
 
     Attributes:
         step_label (str): Card heading for the pipeline step.
         description (str): Body copy describing the step's capabilities.
         icon (str): Lucide icon name rendered in the card header. Defaults to `"sparkles"`.
-        badge (str): Optional pill badge text rendered at the top-right of the card.
+        badge (str): Optional uppercase pill badge text rendered at the top-right of the card.
+        metrics (tuple[str, ...]): Optional metric pills displayed inside the card footer.
         target_tab (str | None): Optional target navbar tab ID associated with the step.
     """
 
@@ -46,20 +60,22 @@ class WorkflowStepSpec:
     description: str
     icon: str = "sparkles"
     badge: str = ""
+    metrics: tuple[str, ...] = ()
     target_tab: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class HeroConfig:
-    """Configuration contract for the Hero & Home landing view.
+    """Configuration contract for the SeroVerse Hero & Home landing view.
 
     Attributes:
-        badge_text (str): Pill badge text displayed above the headline.
+        badge_text (str): Eyebrow pill text displayed above the headline.
         headline (str): Main gradient headline text.
         subtitle (str): Lead paragraph text beneath the headline.
         primary_cta_label (str): Label for the primary action button.
         secondary_cta_label (str): Label for the secondary demo-loading button.
         preview_title (str): Header title of the glassmorphic live chart card.
+        stats (tuple[HeroStatSpec, ...]): Sequence of metrics rendered in the `.sv-stat-strip` bar.
         workflow_steps (tuple[WorkflowStepSpec, ...]): Sequence of workflow cards rendered below the fold.
     """
 
@@ -70,6 +86,7 @@ class HeroConfig:
     secondary_cta_label: str
     preview_title: str
     workflow_steps: tuple[WorkflowStepSpec, ...]
+    stats: tuple[HeroStatSpec, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,56 +103,77 @@ class HomeTabEvents:
 
 
 DEFAULT_HERO_CONFIG = HeroConfig(
-    badge_text="Genomic Sero-Epidemiology & Vaccine Design",
-    headline="Precision Antigen Selection from Genomic Surveillance",
+    badge_text="SeroVerse · Genomic Sero-Epidemiology & Formulation Design",
+    headline="Precision Target Selection from Genomic Surveillance",
     subtitle=(
-        "Explore pathogen isolate collections, engineer compositional antigenic targets, "
-        "fit hierarchical Bayesian and adjusted prevalence models, and evaluate "
-        "multi-valent vaccine and phage-cocktail formulations."
+        "Explore pathogen isolate collections, engineer compositional or binary targets, "
+        "fit JAX/NumPyro hierarchical Bayesian prevalence models, and optimize "
+        "cross-validated multi-valent formulations."
     ),
     primary_cta_label="Explore Dataset & Targets",
     secondary_cta_label="Load Benchmark Cohort",
-    preview_title="Interactive Antigen Prevalence Preview",
+    preview_title="Interactive Target Prevalence Preview",
+    stats=(
+        HeroStatSpec(
+            value="981 Isolates",
+            label="Curated KLEBNET neonatal sepsis benchmark cohort with pairwise SNP distances",
+        ),
+        HeroStatSpec(
+            value="MCMC & SVI",
+            label="JAX/NumPyro hierarchical partial-pooling & analytical/bootstrap estimators",
+        ),
+        HeroStatSpec(
+            value="LOO-CV & FDR",
+            label="Leave-One-Stratum-Out formulation design & permutation differential testing",
+        ),
+        HeroStatSpec(
+            value="9 Plotters",
+            label="Publication-grade Altair choropleths, Pareto curves, UpSet & bump charts",
+        ),
+    ),
     workflow_steps=(
         WorkflowStepSpec(
             step_label="1. Dataset & Target Composer",
             description=(
-                "Load genomic surveillance cohorts, apply semantic QC & variable filters, "
-                "cluster pairwise distance matrices, enrich with UN/World Bank CountryData, "
-                "and compose a cached repertoire of antigenic Targets."
+                "Ingest Kleborate tables or live Pathogenwatch cohorts, apply semantic QC filters, "
+                "de-duplicate clonal outbreaks via SNP/spatiotemporal graph clustering, enrich with "
+                "UN/World Bank CountryData, and compose multi-variable Targets."
             ),
             icon="database",
-            badge="Ingest & Curate",
+            badge="1 · Ingest & Curate",
+            metrics=("Pathogenwatch API", "Outbreak Clustering", "World Bank Enrichment"),
             target_tab="dataset_tab",
         ),
         WorkflowStepSpec(
             step_label="2. Stratified Prevalence Estimation",
             description=(
-                "Aggregate isolate counts across geographic or temporal strata with optional "
-                "adjustment variables, then fit Unpooled, Bootstrap, or Hierarchical "
-                "Bayesian (MCMC / SVI) prevalence models."
+                "Aggregate binary or compositional isolate counts across geographic or clinical "
+                "strata with zero-padding, then fit Unpooled (Wilson, Jeffreys, Dirichlet) or "
+                "Hierarchical Bayesian (NumPyro NUTS MCMC & SVI) partial-pooling models."
             ),
-            icon="trending-up",
-            badge="Model & Visualize",
+            icon="chart-network",
+            badge="2 · Model & Visualize",
+            metrics=("NumPyro NUTS & SVI", "Spatial Choropleths", "UpSet & Pyramid Plots"),
             target_tab="estimation_tab",
         ),
         WorkflowStepSpec(
-            step_label="3. Interactive Epidemiological Visuals",
+            step_label="3. Multi-Valent Formulation & Coverage",
             description=(
-                "Inspect prevalence estimates across Mapbox-style spatial choropleths, "
-                "cumulative coverage curves, UpSet co-occurrence matrices, and back-to-back "
-                "pyramid comparisons with vector SVG export."
+                "Optimize K-valent target formulations using greedy coverage "
+                "maximization, evaluate geographic generalizability via Leave-One-Out CV, and "
+                "test differential stratum enrichment with BH/BY False Discovery Rate control."
             ),
             icon="shield-check",
-            badge="Compare & Export",
-            target_tab="estimation_tab",
+            badge="3 · Optimize & Validate",
+            metrics=("Pareto Coverage Curves", "LOO-CV Rank Stability", "Volcano FDR Testing"),
+            target_tab="formulation_tab",
         ),
     ),
 )
 
 
 # ---------------------------------------------------------------------------
-# 2. Scoped Full-Bleed & Dark-Mode CSS ([data-bs-theme])
+# 2. SeroVerse / SeroEpi Unified Theme & Hero CSS ([data-bs-theme])
 # ---------------------------------------------------------------------------
 
 HERO_CSS = """
@@ -145,97 +183,246 @@ body {
 
 :root,
 [data-bs-theme="light"] {
-    --hero-bg-base: #f8fafc;
-    --hero-radial-1: rgba(37, 99, 235, 0.12);
-    --hero-radial-2: rgba(14, 165, 233, 0.10);
-    --hero-grid-line: rgba(15, 23, 42, 0.045);
-    --hero-border: rgba(15, 23, 42, 0.10);
-    --hero-card-bg: rgba(255, 255, 255, 0.82);
-    --hero-title-grad: linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #0284c7 100%);
-    --hero-badge-bg: rgba(37, 99, 235, 0.10);
-    --hero-badge-text: #1d4ed8;
+    --sv-gradient: linear-gradient(135deg, #7c3aed 0%, #6366f1 52%, #db2777 100%);
+    --sv-glow: rgba(139, 92, 246, 0.16);
+    --sv-border: rgba(139, 92, 246, 0.30);
+    --sv-surface-tint: linear-gradient(145deg, rgba(124, 58, 237, 0.09), rgba(219, 39, 119, 0.05));
+    --sv-accent: #7c3aed;
+    --sv-accent-soft: rgba(139, 92, 246, 0.12);
+    --sv-card-bg: rgba(255, 255, 255, 0.86);
+    --sv-stat-bg: rgba(15, 23, 42, 0.035);
+    --bs-primary: #7c3aed;
+    --bs-primary-rgb: 124, 58, 237;
+    --bs-link-color: #7c3aed;
+    --bs-link-hover-color: #6d28d9;
 }
 
 [data-bs-theme="dark"] {
-    --hero-bg-base: #0b1120;
-    --hero-radial-1: rgba(59, 130, 246, 0.20);
-    --hero-radial-2: rgba(6, 182, 212, 0.14);
-    --hero-grid-line: rgba(255, 255, 255, 0.045);
-    --hero-border: rgba(255, 255, 255, 0.12);
-    --hero-card-bg: rgba(15, 23, 42, 0.76);
-    --hero-title-grad: linear-gradient(135deg, #f8fafc 0%, #60a5fa 55%, #38bdf8 100%);
-    --hero-badge-bg: rgba(59, 130, 246, 0.18);
-    --hero-badge-text: #93c5fd;
+    --sv-gradient: linear-gradient(135deg, #a78bfa 0%, #818cf8 52%, #f472b6 100%);
+    --sv-glow: rgba(167, 139, 250, 0.20);
+    --sv-border: rgba(167, 139, 250, 0.32);
+    --sv-surface-tint: linear-gradient(145deg, rgba(124, 58, 237, 0.16), rgba(219, 39, 119, 0.10));
+    --sv-accent: #c084fc;
+    --sv-accent-soft: rgba(168, 85, 247, 0.16);
+    --sv-card-bg: rgba(15, 23, 42, 0.78);
+    --sv-stat-bg: rgba(15, 23, 42, 0.58);
+    --bs-body-bg: #0b1120;
+    --bs-tertiary-bg: #111827;
+    --bs-primary: #8b5cf6;
+    --bs-primary-rgb: 139, 92, 246;
 }
 
-.hero-full-bleed {
-    width: 100vw;
-    margin-inline: calc(50% - 50vw);
-    margin-top: -1rem;
+[data-bs-theme="dark"] .bg-light {
+    background-color: var(--bs-tertiary-bg) !important;
+    color: var(--bs-body-color) !important;
+}
+
+[data-bs-theme="dark"] .text-dark {
+    color: var(--bs-body-color) !important;
+}
+
+.navbar-brand .sv-brand-icon svg {
+    color: var(--sv-accent);
+}
+
+.sv-hero,
+.serogen-hero {
     position: relative;
-    background-color: var(--hero-bg-base);
-    background-image:
-        radial-gradient(circle at 14% 22%, var(--hero-radial-1) 0%, transparent 48%),
-        radial-gradient(circle at 86% 78%, var(--hero-radial-2) 0%, transparent 52%),
-        linear-gradient(to right, var(--hero-grid-line) 1px, transparent 1px),
-        linear-gradient(to bottom, var(--hero-grid-line) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
-    border-bottom: 1px solid var(--hero-border);
+    padding: 2.4rem 2.2rem;
+    margin-top: 0.75rem;
+    margin-bottom: 1.5rem;
+    border-radius: 1rem;
+    background:
+        radial-gradient(circle at 85% 15%, var(--sv-glow), transparent 55%),
+        var(--sv-surface-tint);
+    border: 1px solid var(--sv-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    container-type: inline-size;
 }
 
-.hero-cta-group {
-    display: inline-grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    gap: 1rem;
-}
-
-@media (max-width: 576px) {
-    .hero-cta-group {
-        display: grid;
-        grid-auto-flow: row;
-        width: 100%;
-    }
-}
-
-.hero-headline {
-    background: var(--hero-title-grad);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-}
-
+.sv-hero-eyebrow,
 .hero-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.9rem;
-    font-size: 0.82rem;
+    gap: 0.42rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.32rem 0.78rem;
+    margin-bottom: 0.9rem;
+    border-radius: 999px;
+    background: var(--sv-accent-soft);
+    color: var(--sv-accent);
+    border: 1px solid var(--sv-border);
+}
+
+.hero-headline {
+    background: var(--sv-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+}
+
+.hero-cta-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.sv-btn-primary.btn {
+    color: #ffffff !important;
+    background: linear-gradient(135deg, #7c3aed 0%, #6366f1 52%, #db2777 100%) !important;
+    border: none !important;
+    border-radius: 0.6rem;
     font-weight: 600;
-    background: var(--hero-badge-bg);
-    color: var(--hero-badge-text);
-    border: 1px solid var(--hero-border);
+    box-shadow: 0 6px 18px -5px var(--sv-glow);
+    transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.sv-btn-primary.btn:hover {
+    transform: translateY(-1px);
+    opacity: 0.95;
+}
+
+.sv-btn-secondary.btn {
+    color: var(--bs-body-color) !important;
+    background: rgba(148, 163, 184, 0.10) !important;
+    border: 1px solid var(--sv-border) !important;
+    border-radius: 0.6rem;
+    font-weight: 600;
+    transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.sv-btn-secondary.btn:hover {
+    transform: translateY(-1px);
+    border-color: var(--sv-accent) !important;
+    background: var(--sv-accent-soft) !important;
 }
 
 .hero-glass-card {
-    background: var(--hero-card-bg);
+    background: var(--sv-card-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--hero-border);
-    border-radius: 1rem;
+    border: 1px solid var(--sv-border);
+    border-radius: 0.9rem;
+    box-shadow: 0 14px 34px -12px var(--sv-glow);
 }
 
+.sv-stat-strip {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+    padding-top: 1.35rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.20);
+}
+
+@media (min-width: 640px) {
+    .sv-stat-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 992px) {
+    .sv-stat-strip {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.sv-stat-item {
+    padding: 0.7rem 0.9rem;
+    border-radius: 0.65rem;
+    background: var(--sv-stat-bg);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.sv-stat-value {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: var(--sv-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+
+.sv-stat-label {
+    display: block;
+    font-size: 0.76rem;
+    opacity: 0.84;
+    margin-top: 0.15rem;
+    line-height: 1.4;
+}
+
+.sv-pillar-card,
 .hero-workflow-card {
-    background: var(--hero-card-bg);
-    border: 1px solid var(--hero-border);
-    border-radius: 0.875rem;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1.45rem 1.4rem;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: var(--sv-card-bg);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    overflow: hidden;
 }
 
+.sv-pillar-card::before,
+.hero-workflow-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--sv-gradient);
+}
+
+.sv-pillar-card:hover,
 .hero-workflow-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    border-color: var(--sv-border);
+    box-shadow: 0 14px 32px -12px var(--sv-glow);
+}
+
+.sv-pillar-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.22rem 0.58rem;
+    border-radius: 999px;
+    background: var(--sv-accent-soft);
+    color: var(--sv-accent);
+    border: 1px solid var(--sv-border);
+}
+
+.sv-pillar-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.sv-metric-pill {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.18rem 0.54rem;
+    border-radius: 0.4rem;
+    background: rgba(148, 163, 184, 0.10);
+    border: 1px solid rgba(148, 163, 184, 0.18);
 }
 """
 
@@ -248,8 +435,9 @@ body {
 class HomeTab(Tab[SessionState]):
     """Home.
 
-    Full-bleed, theme-aware landing tab featuring a live interactive `BarPlotter`
-    specimen, vector SVG download, and end-to-end epidemiological workflow cards.
+    SeroVerse-themed landing tab featuring a glassmorphic `.sv-hero` banner, live
+    interactive `BarPlotter` specimen, `.sv-stat-strip` metrics, and `.sv-pillar-card`
+    epidemiological workflow cards.
 
     Attributes:
         icon (Tag): Lucide `"house"` icon displayed in the top navbar.
@@ -293,7 +481,7 @@ class HomeTab(Tab[SessionState]):
     def _build_default_plotter() -> BarPlotter:
         return BarPlotter(
             top_n=10,
-            bar_color="#3b82f6",
+            bar_color="#8b5cf6",
             width=460,
             height=300,
         )
@@ -344,16 +532,16 @@ class HomeTab(Tab[SessionState]):
         cfg = cls.config
         return shiny_ui.div(
             shiny_ui.head_content(shiny_ui.tags.style(HERO_CSS)),
-            # --- Full-Bleed Hero Section ---
             shiny_ui.div(
+                # --- SeroVerse Glassmorphic Hero Card (.sv-hero) ---
                 shiny_ui.div(
                     shiny_ui.layout_columns(
-                        # Left Column: Badge, Headline, Subtitle, CTAs
+                        # Left Column: Eyebrow, Gradient Headline, Subtitle, CTAs
                         shiny_ui.div(
                             shiny_ui.span(
-                                Icon.lucide("sparkles", size=14),
+                                Icon.lucide("orbit", size=14),
                                 cfg.badge_text,
-                                class_="hero-badge rounded-pill mb-3",
+                                class_="sv-hero-eyebrow hero-badge",
                             ),
                             shiny_ui.h1(
                                 cfg.headline,
@@ -368,23 +556,22 @@ class HomeTab(Tab[SessionState]):
                                     "btn_launch",
                                     cfg.primary_cta_label,
                                     icon=Icon.lucide("rocket", size=16),
-                                    class_="btn-primary btn-lg px-4 shadow-sm",
+                                    class_="sv-btn-primary btn-lg px-4",
                                 ),
                                 shiny_ui.input_action_button(
                                     "btn_load_demo",
                                     cfg.secondary_cta_label,
                                     icon=Icon.lucide("play", size=16),
-                                    class_="btn-outline-primary btn-lg px-4",
+                                    class_="sv-btn-secondary btn-lg px-4",
                                 ),
-                                class_="hero-cta-group align-items-center",
-                                # class_="d-flex flex-wrap gap-3 align-items-center",
+                                class_="hero-cta-group",
                             ),
                         ),
                         # Right Column: Glassmorphic Live BasePlotter Specimen Card
                         shiny_ui.div(
                             shiny_ui.div(
                                 shiny_ui.div(
-                                    Icon.lucide("chart-bar", size=16, class_="text-primary me-1"),
+                                    Icon.lucide("chart-network", size=16, class_="text-primary me-2"),
                                     shiny_ui.span(cfg.preview_title, class_="fw-semibold small"),
                                     class_="d-flex align-items-center",
                                 ),
@@ -400,56 +587,79 @@ class HomeTab(Tab[SessionState]):
                             output_widget(
                                 "hero_altair_chart",
                                 width="100%",
-                                height="340px",
+                                height="320px",
                                 fill=True,
                                 fillable=True,
                             ),
-                            class_="hero-glass-card p-3 p-md-4 shadow-lg",
+                            class_="hero-glass-card p-3 p-md-4",
                         ),
                         col_widths={"sm": (12, 12), "lg": (6, 6)},
-                        class_="align-items-center g-5",
+                        class_="align-items-center g-4",
                         fill=False,
                     ),
-                    class_="container py-5",
-                ),
-                class_="hero-full-bleed",
-            ),
-            # --- Below the Fold: End-to-End Workflow Architecture ---
-            shiny_ui.div(
-                shiny_ui.div(
-                    shiny_ui.h4("End-to-End Epidemiological Pipeline", class_="fw-bold mb-1"),
-                    shiny_ui.p(
-                        "Each workspace unlocks progressively as you curate datasets, engineer targets, and train estimators.",
-                        class_="text-body-secondary mb-4",
-                    ),
-                ),
-                shiny_ui.layout_column_wrap(
-                    *[
-                        shiny_ui.div(
+                    # --- Hero Stat Strip (.sv-stat-strip) ---
+                    shiny_ui.div(
+                        *[
                             shiny_ui.div(
-                                shiny_ui.span(
-                                    Icon.lucide(step.icon, size=18, class_="text-primary"),
-                                    class_="p-2 rounded-3 bg-primary-subtle d-inline-flex align-items-center justify-content-center",
-                                ),
-                                shiny_ui.span(
-                                    step.badge,
-                                    class_="badge bg-secondary-subtle text-secondary-emphasis rounded-pill px-2 py-1",
-                                )
-                                if step.badge
-                                else None,
-                                class_="d-flex justify-content-between align-items-center mb-3",
-                            ),
-                            shiny_ui.h6(step.step_label, class_="fw-bold mb-2"),
-                            shiny_ui.p(step.description, class_="text-body-secondary small mb-0"),
-                            class_="hero-workflow-card p-4 h-100 shadow-sm",
-                        )
-                        for step in cfg.workflow_steps
-                    ],
-                    width=1 / 3,
-                    class_="g-4",
-                    fill=False,
+                                shiny_ui.span(stat.value, class_="sv-stat-value"),
+                                shiny_ui.span(stat.label, class_="sv-stat-label"),
+                                class_="sv-stat-item",
+                            )
+                            for stat in cfg.stats
+                        ],
+                        class_="sv-stat-strip",
+                    )
+                    if cfg.stats
+                    else None,
+                    class_="sv-hero serogen-hero",
                 ),
-                class_="container py-5",
+                # --- Below the Fold: End-to-End Workflow Architecture (.sv-pillar-card) ---
+                shiny_ui.div(
+                    shiny_ui.div(
+                        shiny_ui.h4("End-to-End Epidemiological Pipeline", class_="fw-bold mb-1"),
+                        shiny_ui.p(
+                            "Each workspace unlocks progressively as you curate datasets, engineer targets, and train estimators.",
+                            class_="text-body-secondary mb-4",
+                        ),
+                    ),
+                    shiny_ui.layout_column_wrap(
+                        *[
+                            shiny_ui.div(
+                                shiny_ui.div(
+                                    shiny_ui.div(
+                                        shiny_ui.span(
+                                            Icon.lucide(step.icon, size=18),
+                                            style="color: var(--sv-accent); background: var(--sv-accent-soft);",
+                                            class_="p-2 rounded-3 d-inline-flex align-items-center justify-content-center",
+                                        ),
+                                        shiny_ui.span(
+                                            step.badge,
+                                            class_="sv-pillar-badge",
+                                        )
+                                        if step.badge
+                                        else None,
+                                        class_="d-flex justify-content-between align-items-center mb-3",
+                                    ),
+                                    shiny_ui.h6(step.step_label, class_="fw-bold mb-2"),
+                                    shiny_ui.p(step.description, class_="text-body-secondary small mb-0"),
+                                ),
+                                shiny_ui.div(
+                                    *[shiny_ui.span(m, class_="sv-metric-pill") for m in step.metrics],
+                                    class_="sv-pillar-metrics",
+                                )
+                                if step.metrics
+                                else None,
+                                class_="sv-pillar-card hero-workflow-card h-100",
+                            )
+                            for step in cfg.workflow_steps
+                        ],
+                        width=1 / 3,
+                        class_="g-4",
+                        fill=False,
+                    ),
+                    class_="py-3",
+                ),
+                class_="container py-3",
             ),
         )
 

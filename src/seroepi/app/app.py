@@ -51,7 +51,7 @@ def app_ui() -> shiny_ui.Tag:
         ),
         id="main_nav",
         title=shiny_ui.span(
-            Icon.lucide("dna", size=20),
+            shiny_ui.span(Icon.lucide("orbit", size=20), class_="sv-brand-icon d-inline-flex"),
             shiny_ui.strong("SeroEpi"),
             class_="d-inline-flex align-items-center gap-1",
         ),

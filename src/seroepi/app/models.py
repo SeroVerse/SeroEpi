@@ -27,7 +27,7 @@ class SessionState(BaseSessionState):
 
     Attributes:
         datasets (ArtifactRegistry[Dataset]): Registry of loaded or merged `Dataset` instances.
-        targets (ArtifactRegistry[Target]): Registry of engineered antigenic `Target` definitions.
+        targets (ArtifactRegistry[Target]): Registry of engineered `Target` definitions.
         aggregators (ArtifactRegistry[Aggregator]): Registry of fitted `Aggregator` count tables.
         estimators (ArtifactRegistry[BaseEstimator]): Registry of fitted `BaseEstimator` models.
         formulations (ArtifactRegistry[Formulation]): Registry of fitted `Formulation` designs.

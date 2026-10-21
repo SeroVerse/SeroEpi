@@ -87,13 +87,13 @@ class AggregatorSwitcher(ArtifactSwitcher[Aggregator]):
                 shiny_ui.strong("Fitted Aggregator", class_="small"),
                 class_="d-flex align-items-center mb-1",
             ),
-            shiny_ui.div(item.summary_label, class_="small text-dark fw-semibold"),
+            shiny_ui.div(item.summary_label, class_="small text-body fw-semibold"),
             shiny_ui.div(
                 f"{len(item.data_):,} rows • {'Compositional' if item.is_compositional else 'Binary'}",
                 class_="text-muted",
                 style="font-size: 0.78rem;",
             ),
-            class_="p-2 bg-light rounded border border-success-subtle mb-2",
+            class_="p-2 bg-body-tertiary rounded border border-success-subtle mb-2",
         )
 
 
@@ -284,7 +284,7 @@ class EstimationPanel(Component[SessionState]):
                         "Fit an Aggregator above to unlock estimator training, or load a saved .joblib estimator below.",
                         class_="small text-muted",
                     ),
-                    class_="p-2 bg-light rounded border",
+                    class_="p-2 bg-body-tertiary rounded border",
                 ),
             )
 

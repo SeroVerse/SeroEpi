@@ -69,7 +69,7 @@ class DataFrameExplorer(Component[SessionState]):
                         class_=(
                             "badge bg-warning-subtle text-warning-emphasis me-1 p-2"
                             if n_active_filters > 0
-                            else "badge bg-light text-muted me-1 p-2"
+                            else "badge bg-secondary-subtle text-secondary-emphasis me-1 p-2"
                         ),
                     ),
                     *role_badges,
@@ -82,7 +82,7 @@ class DataFrameExplorer(Component[SessionState]):
                         choices={
                             "all": f"All Columns ({filt_ds.data.width})",
                             "core": "Core Metadata (ID, Taxonomy, Spatial, Temporal)",
-                            "traits": "Traits (Serotypes / Antigens)",
+                            "traits": "Traits (Serotypes / Targets)",
                             "amr_vir": "Resistance & Virulence",
                             "qc_metrics": "QC & Numeric Metrics",
                         },

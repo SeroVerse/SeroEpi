@@ -39,6 +39,7 @@ extra_javascript = [
 
 [project.theme]
 custom_dir = "docs/overrides"
+favicon = "assets/favicon.svg"
 language = "en"
 features = [
   "announce.dismiss",

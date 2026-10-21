@@ -228,7 +228,10 @@ class FilterPanel(Component[SessionState]):
                             else "badge bg-secondary-subtle text-muted me-1"
                         ),
                     ),
-                    shiny_ui.span(spec.variable.role.upper(), class_="badge bg-light text-dark border me-1"),
+                    shiny_ui.span(
+                        spec.variable.role.upper(),
+                        class_="badge bg-secondary-subtle text-secondary-emphasis border me-1",
+                    ),
                     shiny_ui.code(spec.describe(), class_="small"),
                     class_="text-truncate",
                 ),

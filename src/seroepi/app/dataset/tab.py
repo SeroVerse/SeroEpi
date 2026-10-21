@@ -109,7 +109,11 @@ class DatasetTab(Tab[SessionState]):
             if filt_ds.distances is not None
             else "No Distances"
         )
-        dist_cls = "bg-info-subtle text-info-emphasis" if filt_ds.distances is not None else "bg-light text-muted"
+        dist_cls = (
+            "bg-info-subtle text-info-emphasis"
+            if filt_ds.distances is not None
+            else "bg-secondary-subtle text-secondary-emphasis"
+        )
 
         return shiny_ui.card(
             shiny_ui.card_body(
