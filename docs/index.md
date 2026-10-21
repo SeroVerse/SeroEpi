@@ -18,13 +18,13 @@ Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms p
   <img class="off-glb" src="https://img.shields.io/badge/python-3.12%2B-8b5cf6?logo=python&logoColor=white" alt="Python 3.12+" />
   <img class="off-glb" src="https://img.shields.io/badge/inference-JAX%20%2B%20NumPyro-7c3aed" alt="JAX + NumPyro" />
   <img class="off-glb" src="https://img.shields.io/badge/api-scikit--learn%20%2B%20Polars-6366f1" alt="scikit-learn + Polars" />
-  <img class="off-glb" src="https://img.shields.io/badge/app-PyShiny%20%2F%20HF%20Spaces-db2777" alt="PyShiny Web App" />
+  <img class="off-glb" src="https://img.shields.io/badge/app-PyShiny%20%2F%20Posit%20Cloud-db2777" alt="PyShiny Web App" />
   <img class="off-glb" src="https://img.shields.io/badge/license-GPLv3-6366f1" alt="GPLv3 License" />
 </div>
 
 <div class="sv-hero-actions" markdown>
   <a href="app/" class="sv-btn sv-btn--primary" markdown="span">:lucide-app-window: Open Embedded Web App</a>
-  <a href="https://seroverse-seroepi.hf.space" target="_blank" rel="noopener" class="sv-btn sv-btn--secondary" markdown="span">:lucide-external-link: Launch on Hugging Face Spaces ↗</a>
+  <a href="https://tomdstanton-seroepi.share.connect.posit.cloud" target="_blank" rel="noopener" class="sv-btn sv-btn--secondary" markdown="span">:lucide-external-link: Launch on Posit Connect Cloud ↗</a>
 </div>
 
 </div>

@@ -781,7 +781,7 @@ class EstimationTab(Tab[SessionState]):
                 ),
                 width=360,
             ),
-            shiny_ui.navset_card_tab(
+            shiny_ui.navset_card_underline(
                 shiny_ui.nav_panel(
                     "Estimates Explorer",
                     cls.estimates_explorer.ui(),

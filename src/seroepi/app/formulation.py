@@ -1,4 +1,4 @@
-"""Vaccine Formulation Design, LOSO Stability, and Cohort/Model Differential Prevalence tab module."""
+"""Multi-Valent Formulation Design, LOSO Stability, and Cohort/Model Contrasts tab module."""
 
 import copy
 from collections.abc import Callable, Sequence
@@ -13,7 +13,7 @@ from shiny_kit.component import Component, Tab, subcomponent
 from shiny_kit.decorators import bind_effect, bind_output, bind_task, reactive_calc
 from shiny_kit.explorers import ArtifactSwitcher
 from shiny_kit.state import Requirement
-from shiny_kit.ui import Icon, KPICard, KPIRow
+from shiny_kit.ui import Icon
 
 from seroepi.app.components import PlotterExplorer, TableExplorer
 from seroepi.app.models import SessionState
@@ -43,9 +43,16 @@ COMPARISON_PLOTTER_REGISTRY: dict[str, tuple[str, type[BasePlotter]]] = {
     "upset": ("Target Repertoire Overlap (UpSet)", UpSetPlotter),
 }
 
+ALL_FORMULATION_PLOTTERS: dict[str, tuple[str, type[BasePlotter]]] = {
+    **FORMULATION_PLOTTER_REGISTRY,
+    **COMPARISON_PLOTTER_REGISTRY,
+}
+
+type FormulationSubject = tuple[Formulation | None, FormulationComparison | None]
+
 
 # ---------------------------------------------------------------------------
-# 2. Subcomponent 1: Formulation Designer & LOSO Stability Panel
+# 2. Subcomponent 1: Formulation Design Sidebar Panel
 # ---------------------------------------------------------------------------
 
 
@@ -58,6 +65,43 @@ class FormulationSwitcher(ArtifactSwitcher[Formulation]):
     enable_download = True
     file_extension = ".joblib"
     download_button_label = "Save (.joblib)"
+
+    def summary_ui(self, item: Formulation) -> TagChild:
+        """Renders a compact summary badge card for the currently active `Formulation`.
+
+        Args:
+            item: Active fitted `Formulation` instance.
+
+        Returns:
+            UI card fragment summarizing valency, cumulative coverage, FDR significance, and LOSO status.
+        """
+        est_col = item.estimator_.estimate.column
+        in_df = item.rankings_.filter(pl.col("in_formulation"))
+        cum_cov = min(1.0, max(0.0, float(in_df[est_col].sum()))) if len(in_df) > 0 else 0.0
+        n_sig = int(item.rankings_["significant"].sum()) if "significant" in item.rankings_.columns else 0
+        loso_txt = ""
+        if len(item.fold_summary_) > 0:
+            mean_heldout = float(item.fold_summary_["heldout_predicted_coverage"].to_numpy().mean())
+            loso_txt = f" • LOSO {mean_heldout:.1%}"
+
+        return shiny_ui.div(
+            shiny_ui.div(
+                Icon.lucide("shield-check", size=14, class_="text-success me-1"),
+                shiny_ui.strong(f"{item.valency}-Valent Formulation ({item.weighting})", class_="small"),
+                class_="d-flex align-items-center mb-1",
+            ),
+            shiny_ui.div(
+                ", ".join(item.selected_targets_[:6])
+                + (f" (+{len(item.selected_targets_) - 6} more)" if len(item.selected_targets_) > 6 else ""),
+                class_="small text-body fw-semibold text-truncate",
+            ),
+            shiny_ui.div(
+                f"{cum_cov:.1%} coverage • {n_sig}/{len(item.rankings_)} FDR sig.{loso_txt}",
+                class_="text-muted",
+                style="font-size: 0.78rem;",
+            ),
+            class_="p-2 bg-body-tertiary rounded border border-success-subtle mb-2",
+        )
 
     def extra_buttons_ui(self, item: Formulation) -> Sequence[TagChild]:
         """Renders an extra button exporting the active `Formulation` into the Target Composer.
@@ -91,129 +135,25 @@ class FormulationSwitcher(ArtifactSwitcher[Formulation]):
         )
 
 
-class DesignerPlotsExplorer(PlotterExplorer[Formulation]):
-    """Interactive Altair plot explorer for the active `Formulation`."""
-
-    plotter_registry = FORMULATION_PLOTTER_REGISTRY
-    default_plot_key = "coverage"
-    param_prefix = "fplot"
-    download_prefix = "seroepi_formulation"
-    empty_icon = "shield-check"
-    empty_title = "No Active Formulation"
-    empty_message = "Click 'Design & Fit Formulation' in the sidebar to rank targets and evaluate coverage."
-
-    def active_subject(self) -> Formulation | None:
-        """Returns the currently active `Formulation` from `SessionState`.
-
-        Returns:
-            Active `Formulation` instance or `None`.
-        """
-        return self.state.active_formulation
-
-
-class DesignerTableExplorer(TableExplorer[Formulation]):
-    """Interactive DataGrid explorer for `Formulation` rankings, stratum coverage, and LOSO CV."""
-
-    csv_prefix = "seroepi_formulation"
-    empty_icon = "table"
-    empty_title = "No Active Formulation"
-    empty_message = "Fit a Formulation to inspect rankings and stability tables."
-
-    def active_subject(self) -> Formulation | None:
-        """Returns the currently active `Formulation` from `SessionState`.
-
-        Returns:
-            Active `Formulation` instance or `None`.
-        """
-        return self.state.active_formulation
-
-    def table_views(self, subject: Formulation) -> dict[str, str]:
-        """Returns available DataGrid view modes for `subject`.
-
-        Args:
-            subject: Active `Formulation` instance.
-
-        Returns:
-            Mapping from table mode keys to human-readable labels.
-        """
-        choices: dict[str, str] = {
-            "rankings": "Global Rankings & FDR",
-            "stratum_coverage": "Stratum Coverage",
-        }
-        if subject.aggregator_.n_strata >= 1:
-            choices["stratum_trajectories"] = "Stratum Coverage Trajectories"
-        if len(subject.stability_metrics_) > 0:
-            choices["stability"] = "LOSO Target Stability"
-        if len(subject.fold_summary_) > 0:
-            choices["folds"] = "LOSO Held-Out Folds"
-        return choices
-
-    def resolve_table(self, subject: Formulation, mode: str) -> pl.DataFrame | None:
-        """Resolves the Polars DataFrame for `mode` from `subject`.
-
-        Args:
-            subject: Active `Formulation` instance.
-            mode: Selected table view key.
-
-        Returns:
-            Polars `DataFrame` to display in the grid.
-        """
-        if mode == "stratum_coverage":
-            return subject.score_by_stratum()
-        if mode == "stratum_trajectories" and subject.aggregator_.n_strata >= 1:
-            cum_df, _ = subject.stratum_trajectories()
-            return cum_df
-        if mode == "stability" and len(subject.stability_metrics_) > 0:
-            return subject.stability_metrics_
-        if mode == "folds" and len(subject.fold_summary_) > 0:
-            return subject.fold_summary_
-        return subject.rankings_
-
-
-class FormulationDesignerPanel(Component[SessionState]):
-    """Interactive subcomponent for designing K-valent formulations, LOSO CV, and Target Composer export.
+class FormulationDesignPanel(Component[SessionState]):
+    """Sidebar subcomponent configuring and fitting K-valent `Formulation` models with LOSO CV.
 
     Attributes:
-        switcher (FormulationSwitcher): Sidebar artifact switcher for saved formulations.
-        plots_explorer (DesignerPlotsExplorer): Main-panel Altair plotter explorer for coverage and stability.
-        tables_explorer (DesignerTableExplorer): Main-panel DataGrid explorer for rankings and LOSO tables.
+        switcher (FormulationSwitcher): Subcomponent for switching, exporting, or deleting saved formulations.
     """
 
     switcher = subcomponent(FormulationSwitcher)
-    plots_explorer = subcomponent(DesignerPlotsExplorer)
-    tables_explorer = subcomponent(DesignerTableExplorer)
 
     @classmethod
     def _render_ui(cls) -> TagChild:
-        return shiny_ui.layout_sidebar(
-            shiny_ui.sidebar(
-                cls.switcher.ui(),
-                shiny_ui.output_ui("designer_config_ui"),
-                shiny_ui.input_action_button(
-                    "btn_fit_formulation",
-                    "Design & Fit Formulation",
-                    icon=Icon.lucide("shield-check", size=16),
-                    class_="btn-primary w-100 mt-2",
-                ),
-                width=360,
-            ),
-            shiny_ui.div(
-                shiny_ui.output_ui("designer_kpi_ui"),
-                shiny_ui.navset_card_tab(
-                    shiny_ui.nav_panel(
-                        "Interactive Plots",
-                        cls.plots_explorer.ui(),
-                        value="designer_plots_tab",
-                        icon=Icon.lucide("chart-bar", size=16),
-                    ),
-                    shiny_ui.nav_panel(
-                        "DataFrames Explorer",
-                        cls.tables_explorer.ui(),
-                        value="designer_tables_tab",
-                        icon=Icon.lucide("table", size=16),
-                    ),
-                    id="designer_workspace_tabs",
-                ),
+        return shiny_ui.div(
+            cls.switcher.ui(),
+            shiny_ui.output_ui("designer_config_ui"),
+            shiny_ui.input_action_button(
+                "btn_fit_formulation",
+                "Design & Fit Formulation",
+                icon=Icon.lucide("shield-check", size=16),
+                class_="btn-primary w-100 mt-2",
             ),
         )
 
@@ -368,304 +308,87 @@ class FormulationDesignerPanel(Component[SessionState]):
         result.name = custom_name
         return result
 
-    @bind_output(render.ui)
-    def designer_kpi_ui(self) -> TagChild:
-        """Renders a 4-card KPI summary row for the active `Formulation`.
-
-        Returns:
-            `KPIRow` UI tag summarizing valency, cumulative coverage, FDR significance, and LOSO coverage.
-        """
-        form = self.state.active_formulation
-        if form is None:
-            return shiny_ui.div()
-
-        est_col = form.estimator_.estimate.column
-        in_df = form.rankings_.filter(pl.col("in_formulation"))
-        cum_cov = min(1.0, max(0.0, float(in_df[est_col].sum()))) if len(in_df) > 0 else 0.0
-        n_sig = int(form.rankings_["significant"].sum()) if "significant" in form.rankings_.columns else 0
-        selected_str = ", ".join(form.selected_targets_[:8])
-        if len(form.selected_targets_) > 8:
-            selected_str += f" (+{len(form.selected_targets_) - 8} more)"
-
-        if len(form.fold_summary_) > 0:
-            mean_heldout = float(form.fold_summary_["heldout_predicted_coverage"].to_numpy().mean())
-            mean_jaccard = float(form.fold_summary_["jaccard_similarity"].to_numpy().mean())
-            loso_val = f"{mean_heldout:.1%} (J={mean_jaccard:.2f})"
-            loso_sub = f"Across {len(form.fold_summary_)} held-out strata"
-        else:
-            loso_val = "N/A"
-            loso_sub = "Unstratified or CV disabled"
-
-        return KPIRow(
-            KPICard(
-                label="Selected Targets",
-                value=f"{form.valency}-Valent",
-                subtitle=selected_str,
-                subtitle_class="text-primary",
-                truncate_subtitle=True,
-                col_width=4,
-            ),
-            KPICard(
-                label="Cumulative Coverage",
-                value=f"{cum_cov:.1%}",
-                subtitle=f"Weighting: {form.weighting}",
-                value_class="fs-5 text-success",
-                col_width=3,
-            ),
-            KPICard(
-                label=f"FDR Sig. (q < {form.alpha})",
-                value=f"{n_sig} / {len(form.rankings_)}",
-                subtitle=f"Threshold τ = {form.min_prevalence:.1%}",
-                col_width=2,
-            ),
-            KPICard(
-                label="LOSO Held-Out Coverage",
-                value=loso_val,
-                subtitle=loso_sub,
-                value_class="fs-6",
-                col_width=3,
-            ),
-        ).ui()
-
 
 # ---------------------------------------------------------------------------
-# 3. Subcomponent 2: Cohort & Model Contrasts Panel (FormulationComparison)
+# 3. Subcomponent 2: Cohort & Model Contrasts Sidebar Panel
 # ---------------------------------------------------------------------------
 
 
-class ComparisonPlotsExplorer(PlotterExplorer[FormulationComparison]):
-    """Interactive Altair plot explorer for `FormulationComparison` contrasts and rank shifts."""
-
-    plotter_registry = COMPARISON_PLOTTER_REGISTRY
-    default_plot_key = "differential"
-    param_prefix = "cplot"
-    download_prefix = "seroepi_comparison"
-    empty_icon = "git-compare"
-    empty_title = "No Active Cohort or Formulation Comparison"
-    empty_message = "Select 2+ cohorts or saved formulations in the sidebar and click 'Run Comparison & Contrast'."
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._get_comparison: Callable[[], FormulationComparison | None] = lambda: None
-        self._get_pair: Callable[[], tuple[str, str] | None] = lambda: None
-
-    def bind_comparison(
-        self,
-        get_comp: Callable[[], FormulationComparison | None],
-        get_pair: Callable[[], tuple[str, str] | None],
-    ) -> None:
-        """Wires reactive getters for the active comparison and selected contrast pair."""
-        self._get_comparison = get_comp
-        self._get_pair = get_pair
-
-    def active_subject(self) -> FormulationComparison | None:
-        """Returns the currently active `FormulationComparison` instance.
-
-        Returns:
-            Active `FormulationComparison` or `None`.
-        """
-        return self._get_comparison()
-
-    def build_chart(
-        self,
-        plotter: BasePlotter,
-        subject: FormulationComparison,
-        plot_key: str,
-    ) -> alt.TopLevelMixin | None:
-        """Constructs the comparison Altair chart, forwarding the selected `(label_a, label_b)` pair when applicable.
-
-        Args:
-            plotter: Configured `BasePlotter` instance.
-            subject: Active `FormulationComparison`.
-            plot_key: Registry key of the active plotter.
-
-        Returns:
-            Rendered Altair chart.
-        """
-        if isinstance(plotter, DifferentialPrevalencePlotter):
-            pair = self._get_pair()
-            if pair is not None:
-                return plotter.plot(subject, label_a=pair[0], label_b=pair[1])
-        return plotter.plot(subject)
-
-
-class ComparisonTableExplorer(TableExplorer[FormulationComparison]):
-    """Interactive DataGrid explorer for `FormulationComparison` differential prevalence & concordance."""
-
-    csv_prefix = "seroepi_comparison"
-    empty_icon = "table"
-    empty_title = "No Active Comparison"
-    empty_message = "Run a comparison in the sidebar to inspect differential prevalence and concordance tables."
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._get_comparison: Callable[[], FormulationComparison | None] = lambda: None
-        self._get_pair: Callable[[], tuple[str, str] | None] = lambda: None
-
-    def bind_comparison(
-        self,
-        get_comp: Callable[[], FormulationComparison | None],
-        get_pair: Callable[[], tuple[str, str] | None],
-    ) -> None:
-        """Wires reactive getters for the active comparison and selected contrast pair.
-
-        Args:
-            get_comp: Zero-argument callable returning the active `FormulationComparison | None`.
-            get_pair: Zero-argument callable returning the selected `(label_a, label_b)` pair.
-        """
-        self._get_comparison = get_comp
-        self._get_pair = get_pair
-
-    def active_subject(self) -> FormulationComparison | None:
-        """Returns the currently active `FormulationComparison` instance.
-
-        Returns:
-            Active `FormulationComparison` or `None`.
-        """
-        return self._get_comparison()
-
-    def table_views(self, subject: FormulationComparison) -> dict[str, str]:
-        """Returns available DataGrid view modes for `subject`.
-
-        Args:
-            subject: Active `FormulationComparison`.
-
-        Returns:
-            Mapping from table mode keys to human-readable labels.
-        """
-        return {
-            "differential": "Differential Prevalence (A vs. B)",
-            "concordance": "Pairwise Concordance",
-            "rank_shifts": "Wide Rank Shifts",
-            "rankings": "All Cohort / Model Rankings",
-        }
-
-    def resolve_table(self, subject: FormulationComparison, mode: str) -> pl.DataFrame | None:
-        """Resolves the Polars DataFrame corresponding to `mode` from `subject`.
-
-        Args:
-            subject: Active `FormulationComparison`.
-            mode: Selected table view key.
-
-        Returns:
-            Polars `DataFrame` to display in the grid.
-        """
-        if mode == "concordance":
-            return subject.concordance_
-        if mode == "rank_shifts":
-            return subject.rank_shifts_
-        if mode == "rankings":
-            return subject.rankings_
-        pair = self._get_pair()
-        if pair is not None:
-            return subject.contrast(pair[0], pair[1])
-        return subject.differential_prevalence_
-
-
-class FormulationComparisonPanel(Component[SessionState]):
-    """Interactive subcomponent for Cohort Contrasts (from_strata) and Multi-Model FormulationComparison.
-
-    Attributes:
-        plots_explorer (ComparisonPlotsExplorer): Main-panel Altair plotter explorer for contrasts and rank shifts.
-        tables_explorer (ComparisonTableExplorer): Main-panel DataGrid explorer for differential prevalence and concordance.
-    """
-
-    plots_explorer = subcomponent(ComparisonPlotsExplorer)
-    tables_explorer = subcomponent(ComparisonTableExplorer)
+class ContrastsPanel(Component[SessionState]):
+    """Sidebar subcomponent for running Cohort Contrasts (`from_strata`) and Multi-Model `FormulationComparison`."""
 
     def __init__(self) -> None:
         super().__init__()
         self._active_comparison: reactive.Value[FormulationComparison | None] = reactive.Value(None)
-        self.plots_explorer.bind_comparison(self.active_comparison, self.selected_contrast_pair)
-        self.tables_explorer.bind_comparison(self.active_comparison, self.selected_contrast_pair)
+        self._comparison_version: reactive.Value[int] = reactive.Value(0)
 
     @classmethod
     def _render_ui(cls) -> TagChild:
-        return shiny_ui.layout_sidebar(
-            shiny_ui.sidebar(
-                shiny_ui.input_radio_buttons(
-                    "comp_mode",
-                    "Comparison Workflow",
-                    choices={
-                        "cohorts": "Cohort / Stratum Contrast (from_strata)",
-                        "models": "Saved Formulations / Estimators",
-                    },
-                    selected="cohorts",
-                ),
-                shiny_ui.output_ui("comp_source_ui"),
-                shiny_ui.hr(class_="my-2"),
+        return shiny_ui.div(
+            shiny_ui.input_radio_buttons(
+                "comp_mode",
+                "Comparison Workflow",
+                choices={
+                    "cohorts": "Cohort / Stratum Contrast (from_strata)",
+                    "models": "Saved Formulations / Estimators",
+                },
+                selected="cohorts",
+            ),
+            shiny_ui.output_ui("comp_source_ui"),
+            shiny_ui.hr(class_="my-2"),
+            shiny_ui.div(
                 shiny_ui.div(
-                    shiny_ui.div(
-                        shiny_ui.input_numeric("comp_valency", "Valency (K)", value=6, min=1, max=50, step=1),
-                        class_="col-6",
-                    ),
-                    shiny_ui.div(
-                        shiny_ui.input_select(
-                            "comp_weighting",
-                            "Weighting",
-                            choices={"pooled": "Pooled", "equal": "Equal"},
-                            selected="pooled",
-                        ),
-                        class_="col-6",
-                    ),
-                    class_="row g-2",
+                    shiny_ui.input_numeric("comp_valency", "Valency (K)", value=6, min=1, max=50, step=1),
+                    class_="col-6",
                 ),
                 shiny_ui.div(
-                    shiny_ui.div(
-                        shiny_ui.input_numeric(
-                            "comp_null_margin",
-                            "Null Margin (δ)",
-                            value=0.0,
-                            min=0.0,
-                            max=0.50,
-                            step=0.01,
-                        ),
-                        class_="col-6",
+                    shiny_ui.input_select(
+                        "comp_weighting",
+                        "Weighting",
+                        choices={"pooled": "Pooled", "equal": "Equal"},
+                        selected="pooled",
                     ),
-                    shiny_ui.div(
-                        shiny_ui.input_numeric(
-                            "comp_alpha",
-                            "FDR Alpha (α)",
-                            value=0.05,
-                            min=0.001,
-                            max=0.50,
-                            step=0.01,
-                        ),
-                        class_="col-6",
-                    ),
-                    class_="row g-2",
+                    class_="col-6",
                 ),
-                shiny_ui.input_action_button(
-                    "btn_run_comparison",
-                    "Run Comparison & Contrast",
-                    icon=Icon.lucide("git-compare", size=16),
-                    class_="btn-primary w-100 mt-2",
-                ),
-                shiny_ui.output_ui("contrast_pair_selector_ui"),
-                width=360,
+                class_="row g-2",
             ),
             shiny_ui.div(
-                shiny_ui.output_ui("comparison_kpi_ui"),
-                shiny_ui.navset_card_tab(
-                    shiny_ui.nav_panel(
-                        "Interactive Plots",
-                        cls.plots_explorer.ui(),
-                        value="comparison_plots_tab",
-                        icon=Icon.lucide("chart-bar", size=16),
+                shiny_ui.div(
+                    shiny_ui.input_numeric(
+                        "comp_null_margin",
+                        "Null Margin (δ)",
+                        value=0.0,
+                        min=0.0,
+                        max=0.50,
+                        step=0.01,
                     ),
-                    shiny_ui.nav_panel(
-                        "DataFrames Explorer",
-                        cls.tables_explorer.ui(),
-                        value="comparison_tables_tab",
-                        icon=Icon.lucide("table", size=16),
-                    ),
-                    id="comparison_workspace_tabs",
+                    class_="col-6",
                 ),
+                shiny_ui.div(
+                    shiny_ui.input_numeric(
+                        "comp_alpha",
+                        "FDR Alpha (α)",
+                        value=0.05,
+                        min=0.001,
+                        max=0.50,
+                        step=0.01,
+                    ),
+                    class_="col-6",
+                ),
+                class_="row g-2",
             ),
+            shiny_ui.input_action_button(
+                "btn_run_comparison",
+                "Run Comparison & Contrast",
+                icon=Icon.lucide("git-compare", size=16),
+                class_="btn-success w-100 mt-2",
+            ),
+            shiny_ui.output_ui("contrast_pair_selector_ui"),
         )
 
     @bind_output(render.ui)
     def comp_source_ui(self) -> TagChild:
+        """Renders cohort or saved-model selection controls based on `comp_mode`."""
         mode = str(self.val("comp_mode", default="cohorts"))
         if mode == "cohorts":
             stratified_ests = {
@@ -694,7 +417,6 @@ class FormulationComparisonPanel(Component[SessionState]):
             cur_col = self.val("comp_stratum_col", isolate=True)
             sel_col = str(cur_col) if cur_col in strata_cols else strata_cols[0]
 
-            # Order strata values by descending isolate count n
             top_strata_df = agg.data_.group_by(sel_col).agg(n=pl.col("n").max()).sort("n", descending=True)
             strata_vals = [str(v) for v in top_strata_df[sel_col].to_list() if v is not None]
             strata_choices = {
@@ -732,7 +454,6 @@ class FormulationComparisonPanel(Component[SessionState]):
             )
             return shiny_ui.div(*controls)
 
-        # Mode == "models": combine registered Formulations and Estimators
         model_choices: dict[str, str] = {}
         for name in self.state.formulations.names:
             model_choices[f"form::{name}"] = f"[Formulation] {name}"
@@ -753,6 +474,7 @@ class FormulationComparisonPanel(Component[SessionState]):
 
     @bind_task("btn_run_comparison", on_success="_on_comparison_done")
     def run_comparison_task(self) -> FormulationComparison:
+        """Executes or loads from cache the configured `FormulationComparison`."""
         mode = str(self.val("comp_mode", default="cohorts"))
         valency = max(1, int(self.val("comp_valency", default=6) or 6))
         weighting_raw = str(self.val("comp_weighting", default="pooled"))
@@ -820,23 +542,22 @@ class FormulationComparisonPanel(Component[SessionState]):
 
     def _on_comparison_done(self, comp: FormulationComparison) -> None:
         self._active_comparison.set(comp)
+        with reactive.isolate():
+            self._comparison_version.set(self._comparison_version.get() + 1)
 
     @reactive_calc
     def active_comparison(self) -> FormulationComparison | None:
-        """Reactively returns the most recently computed `FormulationComparison`.
-
-        Returns:
-            Active `FormulationComparison` instance or `None`.
-        """
+        """Reactively returns the most recently computed `FormulationComparison`."""
         return self._active_comparison.get()
 
     @reactive_calc
-    def selected_contrast_pair(self) -> tuple[str, str] | None:
-        """Reactively resolves the active `(label_a, label_b)` pairwise contrast labels.
+    def comparison_version(self) -> int:
+        """Reactively returns the monotonically increasing version counter for completed comparisons."""
+        return self._comparison_version.get()
 
-        Returns:
-            Tuple of `(baseline_label, comparison_label)` or `None` if no comparison is active.
-        """
+    @reactive_calc
+    def selected_contrast_pair(self) -> tuple[str, str] | None:
+        """Reactively resolves the active `(label_a, label_b)` pairwise contrast labels."""
         comp = self.active_comparison()
         if comp is None:
             return None
@@ -855,11 +576,7 @@ class FormulationComparisonPanel(Component[SessionState]):
 
     @bind_output(render.ui)
     def contrast_pair_selector_ui(self) -> TagChild:
-        """Renders dropdown selectors for choosing the active `(Baseline A, Comparison B)` pair.
-
-        Returns:
-            UI fragment with `contrast_label_a` and `contrast_label_b` selects.
-        """
+        """Renders dropdown selectors for choosing the active `(Baseline A, Comparison B)` pair."""
         comp = self.active_comparison()
         if comp is None:
             return shiny_ui.div()
@@ -892,87 +609,363 @@ class FormulationComparisonPanel(Component[SessionState]):
             ),
         )
 
-    @bind_output(render.ui)
-    def comparison_kpi_ui(self) -> TagChild:
-        """Renders a 4-card KPI summary row for the active pairwise contrast.
 
-        Returns:
-            `KPIRow` UI tag summarizing top-K overlap, rank concordance, differential targets, and inference engine.
-        """
-        comp = self.active_comparison()
-        pair = self.selected_contrast_pair()
-        if comp is None or pair is None:
-            return shiny_ui.div()
+# ---------------------------------------------------------------------------
+# 4. Subcomponent 3: Unified Formulation & Contrasts DataFrame Explorer (Main Tab 1)
+# ---------------------------------------------------------------------------
 
-        label_a, label_b = pair
-        diff_df = comp.contrast(label_a, label_b)
-        n_sig = int(diff_df["significant"].sum()) if "significant" in diff_df.columns else 0
-        method_str = str(diff_df["test_method"][0]) if len(diff_df) > 0 else "fisher_exact_bh"
-        method_badge = "Bayesian LFSR" if method_str == "bayesian_lfsr" else "Fisher's Exact + BH"
 
-        conc_row = comp.concordance_.filter(
-            ((pl.col("model_a") == label_a) & (pl.col("model_b") == label_b))
-            | ((pl.col("model_a") == label_b) & (pl.col("model_b") == label_a))
-        )
-        if len(conc_row) > 0:
-            jaccard = float(conc_row["jaccard_similarity"][0])
-            overlap = int(conc_row["top_v_overlap"][0])
-            rho = float(conc_row["spearman_rho"][0])
-            tau = float(conc_row["kendall_tau"][0])
-            shared = str(conc_row["shared_targets"][0]) or "None"
-        else:
-            jaccard, overlap, rho, tau, shared = 0.0, 0, 0.0, 0.0, "None"
+class FormulationExplorer(TableExplorer[FormulationSubject]):
+    """Main-panel `TableExplorer` displaying Formulation rankings/LOSO tables and Contrast tables."""
 
-        return KPIRow(
-            KPICard(
-                label=f"Top-{comp.valency} Overlap ({label_a} vs {label_b})",
-                value=f"{overlap}/{comp.valency} (J={jaccard:.2f})",
-                subtitle=f"Shared: {shared}",
-                value_class="fs-5 text-primary",
-                truncate_subtitle=True,
-                col_width=4,
-            ),
-            KPICard(
-                label="Rank Concordance",
-                value=f"ρ = {rho:.2f} · τ = {tau:.2f}",
-                subtitle="Spearman ρ & Kendall τ",
-                col_width=3,
-            ),
-            KPICard(
-                label=f"Differential Targets (q < {comp.alpha})",
-                value=f"{n_sig} / {len(diff_df)}",
-                subtitle=f"Null margin δ = {comp.null_margin:.1%}",
-                value_class="fs-5 text-danger",
-                col_width=3,
-            ),
-            KPICard(
-                label="Inference Engine",
-                value=method_badge,
-                subtitle=f"{len(comp.formulations_)} cohorts/models",
-                value_class="fs-6 text-success",
-                col_width=2,
-            ),
-        ).ui()
+    csv_prefix = "seroepi_formulation"
+    empty_icon = "shield-check"
+    empty_title = "No Active Formulation or Contrast Yet"
+    empty_message = (
+        "Design a K-valent Formulation or run a Cohort/Model Contrast in the sidebar to inspect rankings, "
+        "LOSO stability, and differential prevalence tables."
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._get_comparison: Callable[[], FormulationComparison | None] = lambda: None
+        self._get_comp_version: Callable[[], int] = lambda: 0
+        self._get_pair: Callable[[], tuple[str, str] | None] = lambda: None
+        self._last_form_version: int = 0
+        self._last_comp_version: int = 0
+
+    def bind_comparison(
+        self,
+        get_comp: Callable[[], FormulationComparison | None],
+        get_comp_version: Callable[[], int],
+        get_pair: Callable[[], tuple[str, str] | None],
+    ) -> None:
+        """Wires reactive getters for the active comparison, its version counter, and the contrast pair."""
+        self._get_comparison = get_comp
+        self._get_comp_version = get_comp_version
+        self._get_pair = get_pair
+
+    def active_subject(self) -> FormulationSubject | None:
+        """Returns the `(active_formulation, active_comparison)` pair, or `None` if neither exists."""
+        form = self.state.active_formulation
+        comp = self._get_comparison()
+        if form is None and comp is None:
+            return None
+        return form, comp
+
+    def table_views(self, subject: FormulationSubject) -> dict[str, str]:
+        """Returns available DataGrid view modes for `subject`."""
+        form, comp = subject
+        choices: dict[str, str] = {}
+        if form is not None:
+            choices["rankings"] = "Global Rankings & FDR"
+            choices["stratum_coverage"] = "Stratum Coverage"
+            if form.aggregator_.n_strata >= 1:
+                choices["stratum_trajectories"] = "Stratum Coverage Trajectories"
+            if len(form.stability_metrics_) > 0:
+                choices["stability"] = "LOSO Target Stability"
+            if len(form.fold_summary_) > 0:
+                choices["folds"] = "LOSO Held-Out Folds"
+        if comp is not None:
+            choices["differential"] = "Contrast: Differential Prevalence (A vs. B)"
+            choices["concordance"] = "Contrast: Pairwise Concordance"
+            choices["rank_shifts"] = "Contrast: Wide Rank Shifts"
+            choices["comp_rankings"] = "Contrast: All Cohort / Model Rankings"
+        return choices
+
+    def resolve_selected_mode(
+        self,
+        subject: FormulationSubject,
+        choices: dict[str, str],
+        current_mode: str | None,
+    ) -> str:
+        """Automatically switches between Formulation and Contrast table views when either workflow runs."""
+        form, comp = subject
+        form_ver = self.state.formulations.version
+        comp_ver = self._get_comp_version()
+
+        if comp is not None and comp_ver != self._last_comp_version:
+            self._last_comp_version = comp_ver
+            self._last_form_version = form_ver
+            if "differential" in choices:
+                return "differential"
+        if form is not None and form_ver != self._last_form_version:
+            self._last_form_version = form_ver
+            if "rankings" in choices:
+                return "rankings"
+        return super().resolve_selected_mode(subject, choices, current_mode)
+
+    def toolbar_badges_ui(self, subject: FormulationSubject) -> Sequence[TagChild]:
+        """Renders compact inline summary badges in the table toolbar matching `EstimatesExplorer`."""
+        form, comp = subject
+        mode = str(self.val("table_view_mode", default=""))
+        is_contrast_mode = mode in ("differential", "concordance", "rank_shifts", "comp_rankings") or form is None
+
+        if is_contrast_mode and comp is not None:
+            pair = self._get_pair()
+            if pair is None:
+                return ()
+            label_a, label_b = pair
+            diff_df = comp.contrast(label_a, label_b)
+            n_sig = int(diff_df["significant"].sum()) if "significant" in diff_df.columns else 0
+            method_str = str(diff_df["test_method"][0]) if len(diff_df) > 0 else "fisher_exact_bh"
+            method_badge = "Bayesian LFSR" if method_str == "bayesian_lfsr" else "Fisher's Exact + BH"
+
+            conc_row = comp.concordance_.filter(
+                ((pl.col("model_a") == label_a) & (pl.col("model_b") == label_b))
+                | ((pl.col("model_a") == label_b) & (pl.col("model_b") == label_a))
+            )
+            if len(conc_row) > 0:
+                jaccard = float(conc_row["jaccard_similarity"][0])
+                overlap = int(conc_row["top_v_overlap"][0])
+                rho = float(conc_row["spearman_rho"][0])
+                tau = float(conc_row["kendall_tau"][0])
+            else:
+                jaccard, overlap, rho, tau = 0.0, 0, 0.0, 0.0
+
+            return (
+                shiny_ui.span(
+                    f"{label_a} vs {label_b}: {overlap}/{comp.valency} Overlap (J={jaccard:.2f})",
+                    class_="badge bg-primary me-1",
+                ),
+                shiny_ui.span(
+                    f"ρ = {rho:.2f} · τ = {tau:.2f}",
+                    class_="badge bg-secondary me-1",
+                ),
+                shiny_ui.span(
+                    f"Diff. Targets (q < {comp.alpha}): {n_sig}/{len(diff_df)}",
+                    class_="badge bg-danger-subtle text-danger-emphasis me-1",
+                ),
+                shiny_ui.span(
+                    method_badge,
+                    class_="badge bg-info-subtle text-info-emphasis me-1",
+                ),
+            )
+
+        if form is not None:
+            est_col = form.estimator_.estimate.column
+            in_df = form.rankings_.filter(pl.col("in_formulation"))
+            cum_cov = min(1.0, max(0.0, float(in_df[est_col].sum()))) if len(in_df) > 0 else 0.0
+            n_sig = int(form.rankings_["significant"].sum()) if "significant" in form.rankings_.columns else 0
+            badges: list[TagChild] = [
+                shiny_ui.span(f"{form.valency}-Valent ({form.weighting})", class_="badge bg-primary me-1"),
+                shiny_ui.span(f"Coverage: {cum_cov:.1%}", class_="badge bg-success-subtle text-success-emphasis me-1"),
+                shiny_ui.span(
+                    f"FDR Sig (q < {form.alpha}): {n_sig}/{len(form.rankings_)}",
+                    class_="badge bg-secondary me-1",
+                ),
+            ]
+            if len(form.fold_summary_) > 0:
+                mean_heldout = float(form.fold_summary_["heldout_predicted_coverage"].to_numpy().mean())
+                mean_jaccard = float(form.fold_summary_["jaccard_similarity"].to_numpy().mean())
+                badges.append(
+                    shiny_ui.span(
+                        f"LOSO: {mean_heldout:.1%} (J={mean_jaccard:.2f})",
+                        class_="badge bg-info-subtle text-info-emphasis me-1",
+                    )
+                )
+            return tuple(badges)
+
+        return ()
+
+    def resolve_table(self, subject: FormulationSubject, mode: str) -> pl.DataFrame | None:
+        """Resolves the Polars DataFrame for `mode` from `subject`."""
+        form, comp = subject
+        if mode in ("differential", "concordance", "rank_shifts", "comp_rankings") and comp is not None:
+            if mode == "concordance":
+                return comp.concordance_
+            if mode == "rank_shifts":
+                return comp.rank_shifts_
+            if mode == "comp_rankings":
+                return comp.rankings_
+            pair = self._get_pair()
+            if pair is not None:
+                return comp.contrast(pair[0], pair[1])
+            return comp.differential_prevalence_
+
+        if form is not None:
+            if mode == "stratum_coverage":
+                return form.score_by_stratum()
+            if mode == "stratum_trajectories" and form.aggregator_.n_strata >= 1:
+                cum_df, _ = form.stratum_trajectories()
+                return cum_df
+            if mode == "stability" and len(form.stability_metrics_) > 0:
+                return form.stability_metrics_
+            if mode == "folds" and len(form.fold_summary_) > 0:
+                return form.fold_summary_
+            return form.rankings_
+
+        if comp is not None:
+            pair = self._get_pair()
+            return comp.contrast(pair[0], pair[1]) if pair is not None else comp.differential_prevalence_
+        return None
 
 
 # ---------------------------------------------------------------------------
-# 4. Top-Level FormulationTab
+# 5. Subcomponent 4: Unified Interactive Plots Explorer (Main Tab 2)
+# ---------------------------------------------------------------------------
+
+
+class FormulationPlotsExplorer(PlotterExplorer[FormulationSubject]):
+    """Main-panel `PlotterExplorer` dynamically populating Formulation and Contrast plotters."""
+
+    plotter_registry = ALL_FORMULATION_PLOTTERS
+    default_plot_key = "coverage"
+    param_prefix = "fplot"
+    download_prefix = "seroepi_formulation"
+    sidebar_width = 310
+    chart_height = "75vh"
+    empty_icon = "chart-bar"
+    empty_title = "No Active Formulation or Contrast to Plot"
+    empty_message = (
+        "Design a Formulation or run a Cohort/Model Contrast in the sidebar to explore coverage, "
+        "stability, volcano, bump, and UpSet plots."
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._get_comparison: Callable[[], FormulationComparison | None] = lambda: None
+        self._get_comp_version: Callable[[], int] = lambda: 0
+        self._get_pair: Callable[[], tuple[str, str] | None] = lambda: None
+        self._last_form_version: int = 0
+        self._last_comp_version: int = 0
+
+    def bind_comparison(
+        self,
+        get_comp: Callable[[], FormulationComparison | None],
+        get_comp_version: Callable[[], int],
+        get_pair: Callable[[], tuple[str, str] | None],
+    ) -> None:
+        """Wires reactive getters for the active comparison, its version counter, and the contrast pair."""
+        self._get_comparison = get_comp
+        self._get_comp_version = get_comp_version
+        self._get_pair = get_pair
+
+    def active_subject(self) -> FormulationSubject | None:
+        """Returns the `(active_formulation, active_comparison)` pair, or `None` if neither exists."""
+        form = self.state.active_formulation
+        comp = self._get_comparison()
+        if form is None and comp is None:
+            return None
+        return form, comp
+
+    def available_choices(self, subject: FormulationSubject) -> dict[str, str]:
+        """Returns compatible plotter choices across active `Formulation` and `FormulationComparison` objects."""
+        form, comp = subject
+        choices: dict[str, str] = {}
+        if form is not None and form.is_fitted_:
+            for key, (label, _) in FORMULATION_PLOTTER_REGISTRY.items():
+                choices[key] = label
+        if comp is not None and comp.is_fitted_:
+            for key, (label, _) in COMPARISON_PLOTTER_REGISTRY.items():
+                choices[key] = label
+        return choices
+
+    @bind_output(render.ui)
+    def plot_selector_ui(self) -> TagChild:
+        """Renders the Plot Type dropdown, auto-switching to `"differential"` or `"coverage"` on new runs."""
+        subject = self.active_subject()
+        if subject is None:
+            return shiny_ui.p(self.empty_message, class_="text-muted small mb-0")
+
+        form, comp = subject
+        choices = self.available_choices(subject)
+        current_plot = self.val("plot_type", isolate=True)
+        fallback = self.default_plot_key if self.default_plot_key in choices else next(iter(choices.keys()), None)
+        selected_plot = str(current_plot) if current_plot in choices else fallback
+
+        form_ver = self.state.formulations.version
+        comp_ver = self._get_comp_version()
+        if comp is not None and comp_ver != self._last_comp_version:
+            self._last_comp_version = comp_ver
+            self._last_form_version = form_ver
+            if "differential" in choices:
+                selected_plot = "differential"
+        elif form is not None and form_ver != self._last_form_version:
+            self._last_form_version = form_ver
+            if "coverage" in choices:
+                selected_plot = "coverage"
+
+        header = self.selector_header_ui(subject)
+        return shiny_ui.div(
+            header,
+            shiny_ui.input_select(
+                "plot_type",
+                "Plot Type",
+                choices=choices,
+                selected=selected_plot,
+            ),
+        )
+
+    def selector_header_ui(self, subject: FormulationSubject) -> TagChild:
+        """Renders an unlock status indicator for Cohort & Model Contrast plotters."""
+        _, comp = subject
+        if comp is not None:
+            n_models = len(comp.formulations_)
+            return shiny_ui.div(
+                Icon.lucide("git-compare", size=13, class_="me-1 text-success"),
+                shiny_ui.span(
+                    f"Contrast plots unlocked ({n_models} cohorts/models)",
+                    class_="small text-success",
+                ),
+                class_="d-flex align-items-center mb-2",
+            )
+        return shiny_ui.div(
+            Icon.lucide("lock", size=13, class_="me-1 text-muted"),
+            shiny_ui.span(
+                "Run Cohort & Model Contrasts in sidebar to unlock Volcano, Bump & UpSet plots",
+                class_="small text-muted",
+            ),
+            class_="d-flex align-items-center mb-2",
+        )
+
+    def build_chart(
+        self,
+        plotter: BasePlotter,
+        subject: FormulationSubject,
+        plot_key: str,
+    ) -> alt.TopLevelMixin | None:
+        """Constructs the Altair chart from either the active `Formulation` or `FormulationComparison`."""
+        form, comp = subject
+        if plot_key in COMPARISON_PLOTTER_REGISTRY:
+            if comp is None or not comp.is_fitted_:
+                return None
+            if isinstance(plotter, DifferentialPrevalencePlotter):
+                pair = self._get_pair()
+                if pair is not None:
+                    return plotter.plot(comp, label_a=pair[0], label_b=pair[1])
+                return plotter.plot(comp)
+            if isinstance(plotter, (RankShiftPlotter, UpSetPlotter)):
+                return plotter.plot(comp)
+            return None
+
+        if form is None or not form.is_fitted_:
+            return None
+        if isinstance(plotter, (FormulationCoveragePlotter, FormulationStabilityPlotter)):
+            return plotter.plot(form)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# 6. Top-Level FormulationTab (Composed of 4 Focused Subcomponents)
 # ---------------------------------------------------------------------------
 
 
 class FormulationTab(Tab[SessionState]):
     """Formulation & Contrasts.
 
-    Top-level tab module composing `FormulationDesignerPanel` (for K-valent vaccine/phage
-    formulation design and Leave-One-Stratum-Out stability analysis) and
-    `FormulationComparisonPanel` (for cohort/stratum contrasts and multi-model concordance).
+    Top-level tab module orchestrating `FormulationDesignPanel`, `ContrastsPanel`,
+    `FormulationExplorer`, and `FormulationPlotsExplorer` inside a unified sidebar +
+    underline-card workspace matching `DatasetTab` and `EstimationTab`.
 
     Attributes:
         icon (Tag): Lucide `"shield-check"` navbar icon.
         requires (ClassVar[tuple[Requirement, ...]]): Prerequisites requiring at least one
             loaded `Dataset` and one trained `BaseEstimator`.
-        designer_panel (FormulationDesignerPanel): Subcomponent for K-valent formulation design and LOSO CV.
-        comparison_panel (FormulationComparisonPanel): Subcomponent for cohort and model differential prevalence contrasts.
+        design_panel (FormulationDesignPanel): Sidebar accordion panel for K-valent formulation design and LOSO CV.
+        contrasts_panel (ContrastsPanel): Sidebar accordion panel for cohort and model differential contrasts.
+        formulation_explorer (FormulationExplorer): Main-panel DataGrid explorer for rankings, LOSO, and contrasts.
+        plots_explorer (FormulationPlotsExplorer): Main-panel interactive Altair plotter workspace.
     """
 
     icon = Icon.lucide("shield-check")
@@ -981,23 +974,60 @@ class FormulationTab(Tab[SessionState]):
         Requirement("estimators", min_count=1, label="Trained Estimator", target_tab="estimation_tab"),
     )
 
-    designer_panel = subcomponent(FormulationDesignerPanel)
-    comparison_panel = subcomponent(FormulationComparisonPanel)
+    design_panel = subcomponent(FormulationDesignPanel)
+    contrasts_panel = subcomponent(ContrastsPanel)
+    formulation_explorer = subcomponent(FormulationExplorer)
+    plots_explorer = subcomponent(FormulationPlotsExplorer)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.formulation_explorer.bind_comparison(
+            self.contrasts_panel.active_comparison,
+            self.contrasts_panel.comparison_version,
+            self.contrasts_panel.selected_contrast_pair,
+        )
+        self.plots_explorer.bind_comparison(
+            self.contrasts_panel.active_comparison,
+            self.contrasts_panel.comparison_version,
+            self.contrasts_panel.selected_contrast_pair,
+        )
 
     @classmethod
     def _render_ui(cls) -> TagChild:
-        return shiny_ui.navset_card_underline(
-            shiny_ui.nav_panel(
-                "1. Formulation Designer & Stability",
-                cls.designer_panel.ui(),
-                value="formulation_designer_subtab",
-                icon=Icon.lucide("shield-check", size=16),
+        return shiny_ui.layout_sidebar(
+            shiny_ui.sidebar(
+                shiny_ui.accordion(
+                    shiny_ui.accordion_panel(
+                        "1. Formulation Design",
+                        cls.design_panel.ui(),
+                        value="form_design_accordion_panel",
+                        icon=Icon.lucide("shield-check", size=16),
+                    ),
+                    shiny_ui.accordion_panel(
+                        "2. Cohort & Model Contrasts",
+                        cls.contrasts_panel.ui(),
+                        value="form_contrasts_accordion_panel",
+                        icon=Icon.lucide("git-compare", size=16),
+                    ),
+                    id="formulation_sidebar_accordion",
+                    open=["form_design_accordion_panel", "form_contrasts_accordion_panel"],
+                    multiple=True,
+                ),
+                width=360,
             ),
-            shiny_ui.nav_panel(
-                "2. Cohort & Model Contrasts (FDR / LFSR)",
-                cls.comparison_panel.ui(),
-                value="formulation_comparison_subtab",
-                icon=Icon.lucide("git-compare", size=16),
+            shiny_ui.navset_card_underline(
+                shiny_ui.nav_panel(
+                    "Formulation Explorer",
+                    cls.formulation_explorer.ui(),
+                    value="formulation_dataframe_panel",
+                    icon=Icon.lucide("table", size=16),
+                ),
+                shiny_ui.nav_panel(
+                    "Plots",
+                    cls.plots_explorer.ui(),
+                    value="formulation_plots_panel",
+                    icon=Icon.lucide("chart-bar", size=16),
+                ),
+                id="formulation_main_tabs",
             ),
-            id="formulation_main_navset",
         )

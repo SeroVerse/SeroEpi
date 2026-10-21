@@ -102,7 +102,7 @@ name = "SeroVerse/SeroEpi on GitHub"
 
 [[project.extra.social]]
 icon = "lucide/app-window"
-link = "https://seroverse-seroepi.hf.space"
+link = "https://tomdstanton-seroepi.share.connect.posit.cloud"
 name = "SeroEpi Interactive Web App"
 
 [project.plugins.search]
@@ -125,7 +125,7 @@ full_output = "llms-full.txt"
 [project.plugins.llmstxt.sections]
 "Overview & Application" = [
   { "index.md" = "Overview, Bayesian estimators, formulation optimization, and quickstart" },
-  { "app.md" = "Interactive PyShiny web application hosted on Hugging Face Spaces" },
+  { "app.md" = "Interactive PyShiny web application hosted on Posit Connect Cloud" },
 ]
 "Architecture & ADRs" = [
   { "glossary.md" = "Core epidemiological and statistical terminology" },

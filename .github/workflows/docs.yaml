@@ -34,6 +34,11 @@ jobs:
       - name: Install project and dependencies
         run: uv sync --no-sources --all-groups --all-extras
 
+      - name: Fetch latest announcement from SeroVerse/.github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: uv run --no-sources --group docs python scripts/fetch_announcement.py
+
       - name: Build documentation
         run: uv run --no-sources --group docs zensical build --clean
 

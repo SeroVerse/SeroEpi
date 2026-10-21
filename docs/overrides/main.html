@@ -19,41 +19,90 @@
 {%- block announce -%}{%- include "announcement.html" ignore missing -%}{%- endblock -%}
 
 {% block header %}
-  <nav class="sv-ecosystem-bar" aria-label="SeroVerse Ecosystem Navigation">
-    <div class="sv-eco-inner md-grid">
-      <a href="https://seroverse.github.io/" class="sv-eco-brand">
-        {% include ".icons/lucide/orbit.svg" %}
-        <span>SeroVerse</span>
-        <span class="sv-eco-tag">Suite</span>
+  {% set class = "md-header" %}
+  {% if "navigation.tabs.sticky" in features %}
+    {% set class = class ~ " md-header--shadow md-header--lifted" %}
+  {% elif "navigation.tabs" not in features %}
+    {% set class = class ~ " md-header--shadow" %}
+  {% endif %}
+  <header class="{{ class }}" data-md-component="header">
+    <nav class="md-header__inner md-grid" aria-label="{{ lang.t('header') }}">
+      <a href="{{ config.extra.homepage | d(nav.homepage.url, true) | url }}" title="{{ config.site_name | e }}" class="md-header__button md-logo" aria-label="{{ config.site_name }}" data-md-component="logo">
+        {% include "partials/logo.html" %}
       </a>
-      <div class="sv-eco-links">
+      <label class="md-header__button md-icon" for="__drawer" aria-label="{{ lang.t('nav') }}">
+        {% set icon = config.theme.icon.menu or "material/menu" %}
+        {% include ".icons/" ~ icon ~ ".svg" %}
+      </label>
+      <div class="md-header__title" data-md-component="header-title">
+        <div class="md-header__ellipsis">
+          <div class="md-header__topic">
+            <span class="md-ellipsis">
+              {{ config.site_name }}
+            </span>
+          </div>
+          <div class="md-header__topic" data-md-component="header-topic">
+            <span class="md-ellipsis">
+              {% if page.meta and page.meta.title %}
+                {{ page.meta.title }}
+              {% else %}
+                {{ page.title }}
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="sv-eco-links" aria-label="SeroVerse Ecosystem">
         <a href="https://seroverse.github.io/" class="sv-eco-pill sv-eco-pill--seroverse {% if sv_pillar == 'seroverse' %}is-active{% endif %}">
           {% include ".icons/lucide/orbit.svg" %}
-          <span>Hub</span>
+          <span>Home</span>
         </a>
         <a href="https://seroverse.github.io/SeroGen/" class="sv-eco-pill sv-eco-pill--serogen {% if sv_pillar == 'serogen' %}is-active{% endif %}">
-          {% include ".icons/lucide/orbit.svg" %}
+          {% include ".icons/lucide/dna.svg" %}
           <span>SeroGen</span>
-          <span class="sv-eco-sub">Genomics</span>
         </a>
         <a href="https://seroverse.github.io/KBank/" class="sv-eco-pill sv-eco-pill--kbank {% if sv_pillar == 'kbank' %}is-active{% endif %}">
           {% include ".icons/lucide/hexagon.svg" %}
           <span>KBank</span>
-          <span class="sv-eco-sub">Glycomics</span>
         </a>
         <a href="https://seroverse.github.io/SeroEpi/" class="sv-eco-pill sv-eco-pill--seroepi {% if sv_pillar == 'seroepi' %}is-active{% endif %}">
           {% include ".icons/lucide/chart-network.svg" %}
           <span>SeroEpi</span>
-          <span class="sv-eco-sub">Epidemiology</span>
-        </a>
-        <a href="https://seroverse-seroepi.hf.space" target="_blank" rel="noopener" class="sv-eco-pill sv-eco-pill--app">
-          {% include ".icons/lucide/app-window.svg" %}
-          <span>Live App ↗</span>
         </a>
       </div>
-    </div>
-  </nav>
-  {{ super() }}
+      {% if config.theme.palette %}
+        {% if not config.theme.palette is mapping %}
+          {% include "partials/palette.html" %}
+        {% endif %}
+      {% endif %}
+      {% if not config.theme.palette is mapping %}
+        {% include "partials/javascripts/palette.html" %}
+      {% endif %}
+      {% if config.extra.alternate %}
+        {% include "partials/alternate.html" %}
+      {% endif %}
+      {% if "search" in config.plugins %}
+        {% set search = config.plugins["search"] | attr("config") %}
+        {% if search.enabled %}
+          <label class="md-header__button md-icon" for="__search" aria-label="{{ lang.t('search') }}">
+            {% set icon = config.theme.icon.search or "material/magnify" %}
+            {% include ".icons/" ~ icon ~ ".svg" %}
+          </label>
+          {% include "partials/search.html" %}
+        {% endif %}
+      {% endif %}
+      <div class="md-header__source">
+        {% if config.repo_url %}
+          {% include "partials/source.html" %}
+        {% endif %}
+      </div>
+    </nav>
+    {% if "navigation.tabs.sticky" in features %}
+      {% if "navigation.tabs" in features %}
+        {% include "partials/tabs.html" %}
+      {% endif %}
+    {% endif %}
+  </header>
 {% endblock %}
 
 {% block footer %}
@@ -108,7 +157,7 @@
         <div class="sv-footer-col">
           <h4>Documentation</h4>
           <ul class="sv-footer-list">
-            <li><a href="https://seroverse.github.io/">SeroVerse Portal</a></li>
+            <li><a href="https://seroverse.github.io/">SeroVerse Home</a></li>
             <li><a href="https://seroverse.github.io/SeroGen/">SeroGen — Genomic Engine</a></li>
             <li><a href="https://seroverse.github.io/KBank/">KBank — Glycomic Database</a></li>
             <li><a href="https://seroverse.github.io/SeroEpi/">SeroEpi — Epidemiology</a></li>
@@ -117,7 +166,7 @@
         <div class="sv-footer-col">
           <h4>Interactive &amp; Benchmarks</h4>
           <ul class="sv-footer-list">
-            <li><a href="https://seroverse-seroepi.hf.space" target="_blank" rel="noopener">SeroEpi Live Web App ↗</a></li>
+            <li><a href="https://tomdstanton-seroepi.share.connect.posit.cloud" target="_blank" rel="noopener">SeroEpi Live Web App ↗</a></li>
             <li><a href="https://seroverse.github.io/SeroGen/notebooks/">SeroGen Marimo Slides</a></li>
             <li><a href="https://seroverse.github.io/SeroGen/reference/">SeroGen API Reference</a></li>
             <li><a href="https://seroverse.github.io/KBank/reference/">KBank API Reference</a></li>
