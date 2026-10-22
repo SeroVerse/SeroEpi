@@ -1,7 +1,16 @@
 ---
 title: Web App
+subtitle: Interactive PyShiny Surveillance Dashboard
+description: Interactive PyShiny web dashboard for cohort exploration, compositional target engineering, NUTS MCMC / SVI Bayesian prevalence fitting, and vaccine formulation design.
 author: Tom Stanton
 icon: lucide/app-window
+status: new
+comments: true
+tags:
+  - web-app
+  - shiny
+  - dashboard
+  - visualization
 hide:
   - navigation
   - toc

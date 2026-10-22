@@ -1,118 +1,70 @@
 # Contributing to `SeroEpi`
 
-Contributions are welcome, and they are greatly appreciated!
-Every little bit helps, and credit will always be given.
+Contributions are welcome, and they are greatly appreciated! Every improvement — from bug reports and documentation refinements to statistical estimators, Altair plotters, and PyShiny dashboard workflows — helps advance open bacterial sero-epidemiology.
 
-You can contribute in many ways:
+## Types of Contributions
 
-# Types of Contributions
+### Report Bugs
 
-## Report Bugs
-
-Report bugs at https://github.com/tomdstanton/SeroEpi/issues
+Report bugs at https://github.com/SeroVerse/SeroEpi/issues.
 
 If you are reporting a bug, please include:
 
-- Your operating system name and version.
-- Any details about your local setup that might be helpful in troubleshooting.
-- Detailed steps to reproduce the bug.
+- Your operating system name, Python version (`>=3.13`), and `jax`/`numpyro`/`polars` versions.
+- Minimal cohort data or code snippets sufficient to reproduce the issue.
+- Expected statistical or visualization behavior vs. actual output.
 
-## Fix Bugs
+### Fix Bugs & Implement Features
 
-Look through the GitHub issues for bugs.
-Anything tagged with "bug" and "help wanted" is open to whoever wants to implement a fix for it.
+Look through the GitHub issues for open bugs or enhancements at https://github.com/SeroVerse/SeroEpi/issues. If you are proposing a new feature:
 
-## Implement Features
+- Explain how it fits into `SeroEpi`'s architecture (`seroepi.dataset`, `seroepi.variables`, `seroepi.aggregate`, `seroepi.estimators`, `seroepi.plotting`, `seroepi.app`) and ADRs (`docs/adr/`).
+- Preserve strict `Variable` identity (`ADR 001`), the `Aggregator` sufficiency-reduction contract (`ADR 002`), and the `StratifiedResultMixin` result interface (`ADR 003`).
 
-Look through the GitHub issues for features.
-Anything tagged with "enhancement" and "help wanted" is open to whoever wants to implement it.
+## Local Development Setup
 
-## Write Documentation
+`SeroEpi` uses [`uv`](https://docs.astral.sh/uv/) for dependency and environment management.
 
-SeroEpi could always use more documentation, whether as part of the official docs, in docstrings, or even on the web in blog posts, articles, and such.
-
-## Submit Feedback
-
-The best way to send feedback is to file an issue at https://github.com/tomdstanton/SeroEpi/issues.
-
-If you are proposing a new feature:
-
-- Explain in detail how it would work.
-- Keep the scope as narrow as possible, to make it easier to implement.
-- Remember that this is a volunteer-driven project, and that contributions
-  are welcome :)
-
-# Get Started!
-
-Ready to contribute? Here's how to set up `SeroEpi` for local development.
-Please note this documentation assumes you already have `uv` and `Git` installed and ready to go.
-
-1. Fork the `SeroEpi` repo on GitHub.
-
-2. Clone your fork locally:
+1. Fork and clone the repository:
 
 ```bash
-cd <directory_in_which_repo_should_be_created>
-git clone git@github.com:YOUR_NAME/SeroEpi.git
-```
-
-3. Now we need to install the environment. Navigate into the directory
-
-```bash
+git clone git@github.com:YOUR_USERNAME/SeroEpi.git
 cd SeroEpi
 ```
 
-Then, install and activate the environment with:
+2. Sync all development, test, and documentation dependency groups:
 
 ```bash
-uv sync
+uv sync --all-groups --all-extras
 ```
 
-4. Install pre-commit to run linters/formatters at commit time:
+3. Create a feature branch for your changes:
 
 ```bash
-uv run pre-commit install
+git checkout -b feat/your-feature-name
 ```
 
-5. Create a branch for local development:
+## Quality Checks & Testing
+
+Before opening a pull request, verify that formatting, linting, static type checking, unit tests, and strict documentation builds all pass:
 
 ```bash
-git checkout -b name-of-your-bugfix-or-feature
+# 1. Lint and check formatting with Ruff
+uv run ruff check .
+uv run ruff format --check .
+
+# 2. Run static type checking with ty
+uv run ty check src/
+
+# 3. Run the pytest test suite
+uv run pytest
+
+# 4. Build the Zensical documentation site in strict mode
+uv run zensical build --clean --strict
 ```
 
-Now you can make your changes locally.
+## Pull Request Guidelines
 
-6. Don't forget to add test cases for your added functionality to the `tests` directory.
-
-7. When you're done making changes, check that your changes pass the formatting tests:
-
-```bash
-uv run pre-commit run --all-files
-```
-
-Now, validate that all unit tests are passing:
-
-```bash
-just test
-```
-
-9. Before raising a pull request you should also run tests across supported environments.
-
-10. Commit your changes and push your branch to GitHub:
-
-```bash
-git add .
-git commit -m "Your detailed description of your changes."
-git push origin name-of-your-bugfix-or-feature
-```
-
-11. Submit a pull request through the GitHub website.
-
-# Pull Request Guidelines
-
-Before you submit a pull request, check that it meets these guidelines:
-
-1. The pull request should include tests.
-
-2. If the pull request adds functionality, the docs should be updated.
-   Put your new functionality into a function with a docstring, and add the feature to the list in `README.md`.
+1. Include unit tests in `tests/` covering any new estimators, plotters, or bug fixes.
+2. Document public classes, methods, and dataclasses using Google-style docstrings so `mkdocstrings` renders complete API references.
+3. Ensure all CI checks pass cleanly.

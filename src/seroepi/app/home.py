@@ -103,7 +103,7 @@ class HomeTabEvents:
 
 
 DEFAULT_HERO_CONFIG = HeroConfig(
-    badge_text="SeroVerse · Genomic Sero-Epidemiology & Formulation Design",
+    badge_text="SeroEpi",
     headline="Precision Target Selection from Genomic Surveillance",
     subtitle=(
         "Explore pathogen isolate collections, engineer compositional or binary targets, "
@@ -495,7 +495,7 @@ class HomeTab(Tab[SessionState]):
         """
         if cls._DEFAULT_ESTIMATOR is None:
             example_cls = ExampleDataset.__subclasses__()[0]
-            ds = example_cls.load()
+            ds = example_cls.load() if example_cls.is_built() else example_cls.build()
             primary_trait = ds.pure_traits[0] if ds.pure_traits else next(iter(ds.variables.values()))
             agg = default_cache.fit_or_load(Aggregator(target=primary_trait), ds)
             est = default_cache.fit_or_load(UnpooledEstimator(name=f"Wilson ({ds.name})"), agg)
@@ -536,13 +536,8 @@ class HomeTab(Tab[SessionState]):
                 # --- SeroVerse Glassmorphic Hero Card (.sv-hero) ---
                 shiny_ui.div(
                     shiny_ui.layout_columns(
-                        # Left Column: Eyebrow, Gradient Headline, Subtitle, CTAs
+                        # Left Column: Gradient Headline, Subtitle, CTAs
                         shiny_ui.div(
-                            shiny_ui.span(
-                                Icon.lucide("orbit", size=14),
-                                cfg.badge_text,
-                                class_="sv-hero-eyebrow hero-badge",
-                            ),
                             shiny_ui.h1(
                                 cfg.headline,
                                 class_="display-5 fw-bold hero-headline mb-3",

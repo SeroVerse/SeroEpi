@@ -1,12 +1,21 @@
 ---
-title: SeroEpi — Genomic Sero-Epidemiology & Vaccine Design
+title: SeroEpi
+subtitle: Genomic Sero-Epidemiology & Vaccine Design
+description: Python library for bacterial sero-epidemiology, stratified JAX/NumPyro Bayesian prevalence estimation, and LOSO-validated multi-valent vaccine formulation.
 author: Tom Stanton
 icon: lucide/chart-network
+comments: true
+tags:
+  - epidemiology
+  - bayesian
+  - numpyro
+  - vaccines
+  - shiny
+hide:
+  - navigation
 ---
 
 <div class="sv-hero" markdown>
-
-<div class="sv-hero-eyebrow" markdown="span">:lucide-chart-network: SeroVerse · Epidemiological Modelling</div>
 
 # SeroEpi
 

@@ -1,12 +1,14 @@
 ---
 title: Release Notes
+subtitle: Version History & Changelog
+description: Release history, new features, and breaking changes across SeroEpi versions.
 author: Tom Stanton
+status: new
 comments: true
-tags: [markdown, documentation, web]
+tags: [releases, changelog, documentation]
 icon: lucide/rocket
 categories:
   - Development
 ---
 
-# Release Notes
-
+--8<-- "CHANGELOG.md"

@@ -11,6 +11,20 @@
   {% set sv_pillar = "seroverse" %}
 {% endif %}
 
+{% block htmltitle %}
+  {% if page.meta and page.meta.title %}
+    {% if page.meta.title != config.site_name %}
+      <title>{{ page.meta.title }} - {{ config.site_name }}</title>
+    {% else %}
+      <title>{{ config.site_name }}</title>
+    {% endif %}
+  {% elif page.title and not page.is_homepage and page.title != config.site_name %}
+    <title>{{ page.title | striptags }} - {{ config.site_name }}</title>
+  {% else %}
+    <title>{{ config.site_name }}</title>
+  {% endif %}
+{% endblock %}
+
 {% block extrahead %}
   {{ super() }}
   <script>document.documentElement.setAttribute("data-sv-pillar", "{{ sv_pillar }}");</script>
@@ -151,7 +165,7 @@
             <span>SeroVerse</span>
           </a>
           <p class="sv-footer-tagline">
-            Unified computational ecosystem for bacterial surface polysaccharide genomics, neuro-symbolic glycomics, and Bayesian sero-epidemiology.
+            Unified computational ecosystem for bacterial surface polysaccharide genomics, structural glycomics, and Bayesian sero-epidemiology.
           </p>
         </div>
         <div class="sv-footer-col">

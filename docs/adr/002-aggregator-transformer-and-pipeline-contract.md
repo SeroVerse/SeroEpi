@@ -1,4 +1,7 @@
 ---
+title: "ADR 002: Aggregator & Pipeline"
+subtitle: Sufficiency-Reduction & sklearn Contract
+description: "Architecture Decision Record 002: Aggregator as a Sufficiency-Reduction Transformer and scikit-learn Pipeline Contract."
 author: Tom Stanton
 comments: true
 tags: [adr, architecture, sklearn, aggregator]

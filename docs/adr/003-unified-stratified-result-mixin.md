@@ -1,5 +1,9 @@
 ---
+title: "ADR 003: Stratified Result Mixin"
+subtitle: Unified Result Contract & Static Typing
+description: "Architecture Decision Record 003: Unified StratifiedResultMixin and Elimination of Dynamic getattr."
 author: Tom Stanton
+status: new
 comments: true
 tags: [adr, architecture, DRY, estimators]
 icon: lucide/layers

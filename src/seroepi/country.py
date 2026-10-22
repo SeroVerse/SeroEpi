@@ -9,6 +9,7 @@ import asyncio
 import io
 import json
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Self
@@ -353,7 +354,12 @@ class CountryData(LoadedData):
         """
         target = Path(path) if path else cls.get_default_path()
         if cls._instance is None or cls._instance._data_path != target:
-            return cls.load(target)
+            if cls.is_built(target):
+                instance = cls.load(target)
+                object.__setattr__(instance, "_data_path", target)
+                cls._instance = instance
+                return instance
+            return cls.build(out_path=target)
         return cls._instance
 
     @classmethod
@@ -802,14 +808,27 @@ class CountryData(LoadedData):
         Returns:
             Compiled ``CountryData`` instance with pre-built ``STRtree`` and ``aliases_df``.
         """
-        ne_c_bytes, ne_t_bytes, mledoze_data, opensanctions_data, wb_profiles = asyncio.run(
-            cls._fetch_sources(
-                ne_countries_url=ne_countries_url,
-                ne_tiny_countries_url=ne_tiny_countries_url,
-                mledoze_url=mledoze_url,
-                opensanctions_url=opensanctions_url,
+
+        def _run_fetch() -> tuple[bytes, bytes, list[dict[str, Any]], dict[str, Any], dict[str, dict[str, Any]]]:
+            return asyncio.run(
+                cls._fetch_sources(
+                    ne_countries_url=ne_countries_url,
+                    ne_tiny_countries_url=ne_tiny_countries_url,
+                    mledoze_url=mledoze_url,
+                    opensanctions_url=opensanctions_url,
+                )
             )
-        )
+
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop and running_loop.is_running():
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                ne_c_bytes, ne_t_bytes, mledoze_data, opensanctions_data, wb_profiles = pool.submit(_run_fetch).result()
+        else:
+            ne_c_bytes, ne_t_bytes, mledoze_data, opensanctions_data, wb_profiles = _run_fetch()
         geom_map = cls._extract_geometries(ne_c_bytes, ne_t_bytes)
         transformer = pyproj.Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
 

@@ -3,6 +3,7 @@
 import copy
 import io
 import os
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -153,6 +154,17 @@ class LoadedData(DataModel, ABC):
     FILENAME: ClassVar[str]
     DIR_ENV_VAR: ClassVar[str] = "SEROEPI_DATA_DIR"
     DEFAULT_SUBDIR: ClassVar[str] = "data"
+    _BUILD_LOCKS_GUARD: ClassVar[threading.Lock] = threading.Lock()
+    _BUILD_LOCKS: ClassVar[dict[type["LoadedData"], threading.Lock]] = {}
+
+    @classmethod
+    def _get_build_lock(cls) -> threading.Lock:
+        with cls._BUILD_LOCKS_GUARD:
+            lock = cls._BUILD_LOCKS.get(cls)
+            if lock is None:
+                lock = threading.Lock()
+                cls._BUILD_LOCKS[cls] = lock
+            return lock
 
     @classmethod
     def get_default_dir(cls) -> Path:
@@ -201,29 +213,59 @@ class LoadedData(DataModel, ABC):
 
     @classmethod
     def load(cls, source: str | Path | bytes | io.BytesIO | None = None) -> Self:
-        """Loads the persistent asset from disk or buffer into an in-memory instance.
+        """Loads the persistent asset from disk or buffer, auto-building if `source` is `None` and not yet cached.
 
         Args:
             source: Optional filesystem path, raw bytes, or `BytesIO` buffer.
-                If `None`, resolves to `cls.get_default_path()`.
+                If `None`, resolves to `cls.get_default_path()` and automatically calls `cls.build()`
+                if the asset is not yet present on disk.
 
         Returns:
             The loaded instance of `cls`.
 
         Raises:
-            FileNotFoundError: If the target path does not exist on disk.
+            FileNotFoundError: If an explicit `source` path is provided and does not exist on disk.
         """
-        target = (
-            Path(source)
-            if isinstance(source, (str, Path))
-            else (source if source is not None else cls.get_default_path())
-        )
-        if isinstance(target, Path) and not target.exists():
-            raise FileNotFoundError(
-                f"{cls.__name__} asset not found at {target}. "
-                f"Please call `{cls.__name__}.build()` to download and compile it."
-            )
-        return super().load(target)
+        if source is None:
+            target = cls.get_default_path()
+            if not cls.is_built(target):
+                return cls.build(out_path=target)
+            return super().load(target)
+
+        if isinstance(source, (str, Path)):
+            target = Path(source)
+            if not target.exists():
+                raise FileNotFoundError(
+                    f"{cls.__name__} asset not found at {target}. "
+                    f"Please call `{cls.__name__}.build()` to download and compile it."
+                )
+            return super().load(target)
+
+        return super().load(source)
+
+    @classmethod
+    def ensure(cls, **kwargs: Any) -> Self:
+        """Ensures the persistent asset is built and returns the loaded instance.
+
+        Args:
+            **kwargs: Keyword arguments forwarded to `cls.load()`.
+
+        Returns:
+            The loaded (or freshly built) instance of `cls`.
+        """
+        return cls.load(**kwargs)
+
+    @classmethod
+    def load_built(cls, **kwargs: Any) -> Self:
+        """Loads the persistent asset from the default cache directory, building it first if missing.
+
+        Args:
+            **kwargs: Keyword arguments forwarded to `cls.load()`.
+
+        Returns:
+            The loaded (or freshly built) instance of `cls`.
+        """
+        return cls.load(**kwargs)
 
     @classmethod
     @abstractmethod
@@ -248,6 +290,8 @@ class LoadedData(DataModel, ABC):
     ) -> Self:
         """Compiles and atomically persists the asset to disk if not already built.
 
+        Thread-safe via a per-class lock so concurrent callers share a single build.
+
         Args:
             out_path: Optional destination file path. Defaults to `cls.get_default_path()`.
             force: If `True`, forces recompilation even when `cls.is_built(out_path)` is `True`.
@@ -258,21 +302,25 @@ class LoadedData(DataModel, ABC):
         """
         target = Path(out_path) if out_path else cls.get_default_path()
         if not force and cls.is_built(target):
-            return cls.load(target)
+            return super().load(target)
 
-        target.parent.mkdir(parents=True, exist_ok=True)
-        instance = cls.compile(**kwargs)
+        with cls._get_build_lock():
+            if not force and cls.is_built(target):
+                return super().load(target)
 
-        tmp_path = target.with_suffix(f".tmp.{os.getpid()}.{uuid4().hex[:8]}")
-        try:
-            instance.save(tmp_path)
-            tmp_path.replace(target)
-        except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink()
-            raise
+            target.parent.mkdir(parents=True, exist_ok=True)
+            instance = cls.compile(**kwargs)
 
-        return instance
+            tmp_path = target.with_suffix(f".tmp.{os.getpid()}.{uuid4().hex[:8]}")
+            try:
+                instance.save(tmp_path)
+                tmp_path.replace(target)
+            except Exception:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+                raise
+
+            return instance
 
 
 class StratifiedResultMixin(ABC):

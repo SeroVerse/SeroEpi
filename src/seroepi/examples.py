@@ -95,6 +95,8 @@ class ExampleDataset(Dataset, LoadedData, ABC):
         """
         if source is None or isinstance(source, (str, Path)):
             target = Path(source).resolve() if isinstance(source, (str, Path)) else cls.get_default_path().resolve()
+            if source is None and not target.exists():
+                cls.build(out_path=target)
             if target.exists():
                 mtime = target.stat().st_mtime
                 cache_key = (cls, target, mtime, with_distances)

@@ -1,4 +1,7 @@
 ---
+title: Glossary
+subtitle: Core Epidemiological & Domain Types
+description: Ubiquitous language, core domain types, and invariants of the SeroEpi architecture.
 author: Tom Stanton
 comments: true
 tags: [architecture, domain-model, glossary]

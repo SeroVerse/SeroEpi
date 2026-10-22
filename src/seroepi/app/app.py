@@ -1,6 +1,8 @@
 """Main PyShiny application entrypoint for SeroEpi."""
 
+import os
 import sys
+import threading
 from pathlib import Path
 
 from htmltools import TagChild
@@ -20,6 +22,7 @@ from seroepi.app.footer import app_footer  # noqa: E402
 from seroepi.app.formulation import FormulationTab  # noqa: E402
 from seroepi.app.home import HomeTab  # noqa: E402
 from seroepi.app.models import SessionState  # noqa: E402
+from seroepi.country import CountryData  # noqa: E402
 from seroepi.estimators.formulation import Formulation  # noqa: E402
 from seroepi.estimators.unpooled import UnpooledEstimator  # noqa: E402
 from seroepi.variables import Spatial, Target  # noqa: E402
@@ -138,6 +141,24 @@ def app_server(input: Inputs, output: Outputs, session: Session) -> None:
     output.navbar_registry_badges = navbar_registry_badges  # ty: ignore[unresolved-attribute]
 
 
+def _warm_reference_assets() -> None:
+    """Warms `HomeTab.default_hero_estimator()` and `CountryData` in a background daemon thread on worker boot."""
+    if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+
+    def _worker() -> None:
+        try:
+            HomeTab.default_hero_estimator()
+        except Exception:
+            pass
+        try:
+            CountryData.get_instance()
+        except Exception:
+            pass
+
+    threading.Thread(target=_worker, name="seroepi-asset-warmup", daemon=True).start()
+
+
 def create_app() -> App:
     """Instantiates the SeroEpi PyShiny `App`.
 
@@ -151,6 +172,7 @@ def create_app() -> App:
         shiny_app = create_app()
         ```
     """
+    _warm_reference_assets()
     return App(app_ui(), app_server)
 
 

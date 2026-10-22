@@ -1,4 +1,7 @@
 ---
+title: "ADR 001: Variable Identity"
+subtitle: O(1) Column Lookup & Polymorphic Expressions
+description: "Architecture Decision Record 001: Strict Variable Identity, O(1) Column Lookup, and Polymorphic Expressions in SeroEpi."
 author: Tom Stanton
 comments: true
 tags: [adr, architecture, variables]
