@@ -21,10 +21,10 @@ hide:
 
 **Precision target selection, hierarchical Bayesian prevalence modelling, and multi-valent formulation design from genomic surveillance.**
 
-Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms pathogen isolate collections and [`SeroGen`](https://seroverse.github.io/SeroGen/) / [`KBank`](https://seroverse.github.io/KBank/) trait calls into stratified prevalence estimates, spatial choropleths, and cross-validated multi-valent formulations.
+Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms pathogen isolate collections and genotype calls into stratified prevalence estimates, spatial choropleths, and cross-validated multi-valent formulations.
 
 <div class="sv-badges">
-  <img class="off-glb" src="https://img.shields.io/badge/python-3.12%2B-8b5cf6?logo=python&logoColor=white" alt="Python 3.12+" />
+  <img class="off-glb" src="https://img.shields.io/badge/python-3.13%2B-8b5cf6?logo=python&logoColor=white" alt="Python 3.13+" />
   <img class="off-glb" src="https://img.shields.io/badge/inference-JAX%20%2B%20NumPyro-7c3aed" alt="JAX + NumPyro" />
   <img class="off-glb" src="https://img.shields.io/badge/api-scikit--learn%20%2B%20Polars-6366f1" alt="scikit-learn + Polars" />
   <img class="off-glb" src="https://img.shields.io/badge/app-PyShiny%20%2F%20Posit%20Cloud-db2777" alt="PyShiny Web App" />
@@ -33,7 +33,7 @@ Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms p
 
 <div class="sv-hero-actions" markdown>
   <a href="app/" class="sv-btn sv-btn--primary" markdown="span">:lucide-app-window: Open Embedded Web App</a>
-  <a href="https://tomdstanton-seroepi.share.connect.posit.cloud" target="_blank" rel="noopener" class="sv-btn sv-btn--secondary" markdown="span">:lucide-external-link: Launch on Posit Connect Cloud ↗</a>
+  <a href="https://seroverse-seroepi.share.connect.posit.cloud" target="_blank" rel="noopener" class="sv-btn sv-btn--secondary" markdown="span">:lucide-external-link: Launch on Posit Connect Cloud ↗</a>
 </div>
 
 </div>
@@ -91,19 +91,19 @@ flowchart LR
 
 ```python
 from seroepi.aggregate import Aggregator
-from seroepi.estimators.formulation import FormulationEstimator
+from seroepi.estimators.formulation import Formulation
 from seroepi.estimators.hierarchical import HierarchicalSVIEstimator
 from seroepi.examples import KlebnetNeonatalSepsis
 from seroepi.plotting.choropleth import ChoroplethPlotter
 
 # 1. Load the KlebNET Neonatal Sepsis benchmark collection (981 K. pneumoniae isolates)
-ds = KlebnetNeonatalSepsis.load_built()
+ds = KlebnetNeonatalSepsis.ensure()
 
 # 2. Aggregate capsule K-locus counts across geographic strata
 agg = Aggregator(target=ds.var("K_locus"), strata=[ds.var("country")]).fit(ds)
 
 # 3. Fit a Hierarchical Bayesian SVI prevalence model and 10-valent vaccine formulation
 est = HierarchicalSVIEstimator().fit(agg)
-vaccine = FormulationEstimator(max_valency=10).fit(est)
+vaccine = Formulation(estimator=est, valency=10).fit(agg)
 chart = ChoroplethPlotter().plot(est)
 ```

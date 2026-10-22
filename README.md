@@ -19,7 +19,7 @@
 
 ## Overview
 
-**SeroEpi** is the epidemiological modelling and vaccine formulation engine of the **SeroVerse** suite. Built on `scikit-learn` estimator contracts, `Polars` columnar dataframes, and `JAX`/`NumPyro` probabilistic inference, SeroEpi transforms pathogen isolate collections and [`SeroGen`](https://seroverse.github.io/SeroGen/) / [`KBank`](https://seroverse.github.io/KBank/) trait calls into stratified prevalence estimates, spatial choropleths, and cross-validated multi-valent formulations.
+**SeroEpi** is the epidemiological modelling and vaccine formulation engine of the **SeroVerse** suite. Built on `scikit-learn` estimator contracts, `Polars` columnar dataframes, and `JAX`/`NumPyro` probabilistic inference, SeroEpi transforms pathogen isolate collections and genotype calls into stratified prevalence estimates, spatial choropleths, and cross-validated multi-valent formulations.
 
 ### Core Capabilities
 
