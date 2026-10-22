@@ -51,6 +51,9 @@ app = [
 ]
 all = ["seroepi[app]"]
 
+[project.scripts]
+seroepi-app = "seroepi.app.app:main"
+
 [dependency-groups]
 docs = [
     "zensical>=0.0.46",

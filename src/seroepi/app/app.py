@@ -1,14 +1,29 @@
 """Main PyShiny application entrypoint for SeroEpi."""
 
+import argparse
 import os
 import sys
 import threading
+from collections.abc import Sequence
 from pathlib import Path
 
-from htmltools import TagChild
-from shiny import App, Inputs, Outputs, Session, reactive, render, req
-from shiny import ui as shiny_ui
-from shiny_kit.ui import Icon
+try:
+    from htmltools import TagChild
+    from shiny import App, Inputs, Outputs, Session, reactive, render, req
+    from shiny import ui as shiny_ui
+    from shiny._main import run_app
+    from shiny_kit.ui import Icon
+except ModuleNotFoundError as _exc:
+    if Path(sys.argv[0]).stem in {"seroepi-app", "app"}:
+        sys.stderr.write(
+            f"Error: Missing optional dependency '{_exc.name}'.\n"
+            "Install the SeroEpi web application dependencies with:\n\n"
+            "    pip install 'seroepi[app]'\n"
+        )
+        sys.exit(1)
+    raise ModuleNotFoundError(
+        "The SeroEpi web application requires optional app dependencies. Install them with: pip install 'seroepi[app]'"
+    ) from _exc
 
 _SRC_DIR = str(Path(__file__).resolve().parents[2])
 if _SRC_DIR not in sys.path:
@@ -18,7 +33,7 @@ from seroepi.aggregate import Aggregator  # noqa: E402
 from seroepi.app.dataset.loader import DatasetLoader  # noqa: E402
 from seroepi.app.dataset.tab import DatasetTab  # noqa: E402
 from seroepi.app.estimation import EstimationTab  # noqa: E402
-from seroepi.app.footer import app_footer  # noqa: E402
+from seroepi.app.footer import PackageMetadata, app_footer  # noqa: E402
 from seroepi.app.formulation import FormulationTab  # noqa: E402
 from seroepi.app.home import HomeTab  # noqa: E402
 from seroepi.app.models import SessionState  # noqa: E402
@@ -177,3 +192,80 @@ def create_app() -> App:
 
 
 app = create_app()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Constructs the command-line argument parser for `seroepi-app`.
+
+    Returns:
+        Configured `argparse.ArgumentParser` supporting `--host`, `--port`,
+        `--reload` / `--no-reload`, `--launch-browser` / `--no-launch-browser`,
+        and `--version`.
+    """
+    pkg_meta = PackageMetadata.load("seroepi")
+    parser = argparse.ArgumentParser(
+        prog="seroepi-app",
+        description="Launch the interactive SeroEpi PyShiny surveillance and vaccine formulation dashboard.",
+    )
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"%(prog)s {pkg_meta.version}",
+    )
+    parser.add_argument(
+        "-H",
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Host interface to bind the server to (default: 127.0.0.1).",
+    )
+    parser.add_argument(
+        "-p",
+        "--port",
+        type=int,
+        default=8000,
+        help="Port number to bind the server to (default: 8000; use 0 for a random available port).",
+    )
+    parser.add_argument(
+        "-r",
+        "--reload",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable or disable auto-reload on source file changes (default: disabled).",
+    )
+    parser.add_argument(
+        "-b",
+        "--launch-browser",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Automatically open the application in the default web browser (default: enabled).",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entrypoint for launching the SeroEpi PyShiny web application (`seroepi-app`).
+
+    Args:
+        argv: Optional sequence of command-line arguments (defaults to `sys.argv[1:]`).
+
+    Returns:
+        Process exit status code (`0` on normal shutdown).
+    """
+    parser = build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    run_app(
+        "seroepi.app.app:app",
+        host=args.host,
+        port=args.port,
+        reload=bool(args.reload),
+        reload_dirs=[str(Path(__file__).resolve().parent)],
+        app_dir=_SRC_DIR,
+        launch_browser=bool(args.launch_browser),
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

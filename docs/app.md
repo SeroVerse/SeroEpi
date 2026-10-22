@@ -61,6 +61,7 @@ hide:
     <strong>SeroEpi Interactive Dashboard</strong> — Powered by PyShiny &amp; JAX/NumPyro on Posit Connect Cloud
   </span>
   <div class="seroepi-app-links">
+    <span>Run locally: <code>pip install "seroepi[app]" &amp;&amp; seroepi-app</code></span>
     <a href="https://seroverse-seroepi.share.connect.posit.cloud" target="_blank" rel="noopener" class="md-button md-button--primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">
       Open in New Tab ↗
     </a>
