@@ -31,6 +31,7 @@ nav = [
     { "seroepi.plotting & app" = "reference/plotting.md" },
   ] },
   { "Community" = [
+    "citation.md",
     "conduct.md",
     "contributing.md",
     "releases.md",
@@ -153,6 +154,7 @@ full_output = "llms-full.txt"
   { "reference/plotting.md" = "seroepi.plotting and seroepi.app: Altair epidemiological visualizers and OOP PyShiny web application components" },
 ]
 "Community" = [
+  { "citation.md" = "How to cite SeroEpi in academic publications" },
   { "conduct.md" = "Contributor Covenant Code of Conduct" },
   { "contributing.md" = "Local development setup, testing, and pull request guidelines" },
   { "releases.md" = "Version history and changelog" },
