@@ -58,8 +58,8 @@ class Aggregator(StratifiedResultMixin, BaseEstimator, TransformerMixin):
 
     Examples:
         >>> from seroepi.aggregate import Aggregator
-        >>> from seroepi.examples import KlebnetNeonatalSepsis
-        >>> ds = KlebnetNeonatalSepsis.load()
+        >>> from seroepi.dataset import Dataset
+        >>> ds = Dataset.example()
         >>> agg = Aggregator(
         ...     target=ds.var("K_locus"),
         ...     strata=ds.var("Country"),

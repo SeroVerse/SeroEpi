@@ -1,15 +1,12 @@
-"""Two-tier content-addressable `ModelCache` subclassing `shiny_kit.caching.BaseCache`."""
+"""In-memory content-addressable `ModelCache` subclassing `shiny_kit.caching.BaseCache`."""
 
 import copy
 import hashlib
-import shutil
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 
-import joblib
 import polars as pl
-from joblib import Memory
 from shiny_kit.caching import BaseCache
 from shiny_kit.warnings import WarningCatcher
 from sklearn.base import BaseEstimator as SklearnBaseEstimator
@@ -17,33 +14,30 @@ from sklearn.base import clone
 
 
 class ModelCache(BaseCache):
-    """Thread-safe two-tier content-addressable cache (in-memory LRU + persistent joblib disk cache).
+    """Thread-safe in-memory LRU content-addressable cache for SeroEpi models.
 
     Subclasses [`shiny_kit.caching.BaseCache`](file:///Users/tsta0015/Programming/shiny-kit/src/shiny_kit/caching.py)
     to fingerprint Polars `DataFrame`s, `Dataset`s, and scikit-learn `BaseEstimator`s,
-    persist artifacts as compressed `.joblib` files, and provide single-flight `fit_or_load()`.
+    and provide single-flight `fit_or_load()` memoization in memory.
 
     Args:
-        cache_dir: Optional directory path for persistent disk storage. Defaults to `~/.shiny-kit/cache`.
-        max_memory_items: Maximum number of fitted artifacts retained in the fast in-memory LRU tier.
-        persist_to_disk: Whether to persist fitted models to disk via `joblib`.
+        cache_dir: Optional unused directory path forwarded to `BaseCache`.
+        max_memory_items: Maximum number of fitted artifacts retained in the in-memory LRU tier.
+        persist_to_disk: Whether to persist fitted models to disk. Defaults to `False`.
     """
-
-    disk_extension: ClassVar[str] = ".joblib"
 
     def __init__(
         self,
         cache_dir: str | Path | None = None,
         *,
         max_memory_items: int = 64,
-        persist_to_disk: bool = True,
+        persist_to_disk: bool = False,
     ) -> None:
         super().__init__(
             cache_dir=cache_dir,
             max_memory_items=max_memory_items,
             persist_to_disk=persist_to_disk,
         )
-        self._memory: Memory | None = Memory(str(self.cache_dir), verbose=0) if self.persist_to_disk else None
 
     @classmethod
     def _update_custom_hasher(cls, hasher: "hashlib._Hash", obj: Any) -> bool:
@@ -96,12 +90,6 @@ class ModelCache(BaseCache):
             if dtype.is_numeric():
                 s_sum = df[col].sum()
                 hasher.update(f"sum({col})={s_sum};".encode())
-
-    def _dump_to_disk(self, value: Any, path: Path) -> None:
-        joblib.dump(value, path, compress=3)
-
-    def _load_from_disk(self, path: Path) -> Any:
-        return joblib.load(path)
 
     def compute_fit_key(self, estimator: Any, X: Any, y: Any = None) -> str:
         """Computes a composite cache key for fitting `estimator` on `(X, y)`.
@@ -164,18 +152,5 @@ class ModelCache(BaseCache):
             WarningCatcher.emit_messages(merged_warnings, stacklevel=2)
             return stored
 
-    def clear(self) -> None:
-        """Clears both the in-memory LRU cache and persistent disk artifacts."""
-        with self._lock:
-            if self._memory is not None:
-                self._memory.clear(warn=False)
-            super().clear()
-            artifacts_dir = self.cache_dir / "artifacts"
-            if artifacts_dir.exists():
-                shutil.rmtree(artifacts_dir, ignore_errors=True)
 
-
-# Default shared cache instance
-CACHE_DIR = str(ModelCache.get_default_cache_dir())
 default_cache = ModelCache()
-memory = default_cache._memory

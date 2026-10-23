@@ -283,7 +283,7 @@ class ChoroplethPlotter(SingleStratumPlotter):
             top_n: Optional maximum number of top targets overriding `self.top_n`.
             zoomable: Optional boolean overriding `self.zoomable` for zoom/pan range controls.
             auto_scale: Optional boolean overriding `self.auto_scale` for initial bounding-box fitting.
-            country_data: Optional custom `CountryData` instance (defaults to `CountryData.get_instance()`).
+            country_data: Optional custom `CountryData` instance (defaults to `CountryData.load()`).
             title: Custom chart title overriding the default geographic header.
             subtitle: Custom chart subtitle overriding the automatic resolution and interval summary.
             param_suffix: Optional string suffix appended to Vega-Lite parameter names to prevent collisions in multi-map layouts.
@@ -306,7 +306,7 @@ class ChoroplethPlotter(SingleStratumPlotter):
                 f"got {type(stratum_var).__name__} ('{stratum_var.column}')."
             )
 
-        cd = country_data or CountryData.get_instance()
+        cd = country_data or CountryData.load()
         eff_res = (
             Spatial.Resolution.COUNTRY
             if stratum_var.resolution == Spatial.Resolution.UNKNOWN

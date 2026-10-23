@@ -1,29 +1,18 @@
-"""Object-oriented geographic data management, country dimensions, and reverse geocoding.
+"""Object-oriented geographic data management, country dimensions, and reverse geocoding."""
 
-Zero-payload by default. All country polygons, ISO codes, UN regions, and aliases
-are fetched and compiled on demand into a single ~/.seroepi/data/countries.joblib
-file via CountryData.build().
-"""
-
-import asyncio
 import io
 import json
 from collections.abc import Mapping
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Self
 
 import polars as pl
-import pyogrio
 import pyproj
 import shapely
 import shapely.ops
-import yaml
-from shapely.geometry import Point
 
-from seroepi.client.world_bank import WorldBankClient
-from seroepi.models import LoadedData
+from seroepi.models import DataModel
 from seroepi.variables import (
     Count,
     Estimate,
@@ -36,217 +25,11 @@ from seroepi.variables import (
 
 
 @dataclass(frozen=True, slots=True)
-class CountryRecord:
-    """Strongly-typed metadata and geometry record for a sovereign or dependent country.
-
-    Attributes:
-        iso3: Three-letter uppercase ISO 3166-1 alpha-3 country code (or ``"KOS"`` for Kosovo).
-        geometry: Serialized Well-Known Binary (WKB) polygon or multipolygon boundary in EPSG:4326.
-        geometry_area: Planar surface area in square meters computed in EPSG:3857 projection.
-        iso2: Two-letter uppercase ISO 3166-1 alpha-2 country code.
-        numeric: Three-digit ISO 3166-1 numeric code string.
-        name: Common English display name of the country.
-        official_name: Formal diplomatic or official English name of the country.
-        region: Macro-geographic continent or UN region name.
-        subregion: UN M49 intermediate or subregion name.
-        continent: Macro-continental grouping aligned with ``region``.
-        centroid_lat: Representative geographic centroid latitude in decimal degrees.
-        centroid_lon: Representative geographic centroid longitude in decimal degrees.
-        population: Estimated national population count.
-        life_expectancy: Latest World Bank life expectancy at birth in years, or ``None``.
-        life_expectancy_year: Reference year string for ``life_expectancy``.
-        income_level: World Bank income classification label.
-        income_level_code: World Bank income classification code.
-        lending_type: World Bank lending category.
-        capital_city: Name of the national capital city.
-        aliases: Sorted list of uppercase multilingual names, translations, and abbreviations.
-    """
-
-    iso3: str
-    geometry: bytes
-    geometry_area: float
-    iso2: str = ""
-    numeric: str = ""
-    name: str = ""
-    official_name: str = ""
-    region: str = ""
-    subregion: str = ""
-    continent: str = ""
-    centroid_lat: float = 0.0
-    centroid_lon: float = 0.0
-    population: int = 0
-    life_expectancy: float | None = None
-    life_expectancy_year: str = ""
-    income_level: str = ""
-    income_level_code: str = ""
-    lending_type: str = ""
-    capital_city: str = ""
-    aliases: list[str] = field(default_factory=list)
-
-    @staticmethod
-    def extract_aliases(
-        c: dict[str, Any],
-        iso3: str,
-        iso2: str,
-        opensanctions_data: dict[str, Any],
-    ) -> list[str]:
-        """Extracts multilingual translations, official names, and OpenSanctions aliases for a country.
-
-        Args:
-            c: Raw ``mledoze/countries`` dictionary entry for the country.
-            iso3: Three-letter uppercase ISO3 code.
-            iso2: Two-letter uppercase ISO2 code.
-            opensanctions_data: Parsed OpenSanctions country alias mapping.
-
-        Returns:
-            Sorted list of unique uppercase country name aliases.
-        """
-        aliases: set[str] = {iso3.upper()}
-        if iso2:
-            aliases.add(iso2.upper())
-
-        name_dict = c.get("name", {})
-        for name_key in ("common", "official"):
-            val = str(name_dict.get(name_key, "")).strip().upper()
-            if val:
-                aliases.add(val)
-
-        for alt in c.get("altSpellings", []):
-            clean = str(alt).strip().upper()
-            if clean:
-                aliases.add(clean)
-
-        for trans in c.get("translations", {}).values():
-            if isinstance(trans, dict):
-                for k in ("common", "official"):
-                    val = str(trans.get(k, "")).strip().upper()
-                    if val:
-                        aliases.add(val)
-
-        for n in name_dict.get("native", {}).values():
-            if isinstance(n, dict):
-                for k in ("common", "official"):
-                    val = str(n.get(k, "")).strip().upper()
-                    if val:
-                        aliases.add(val)
-
-        # OpenSanctions aliases by ISO2 and ISO3
-        for key in (iso2, iso3):
-            if key and key in opensanctions_data and isinstance(opensanctions_data[key], list):
-                for item in opensanctions_data[key]:
-                    clean = str(item).strip().upper()
-                    if clean:
-                        aliases.add(clean)
-
-        # OpenSanctions sub-regions (e.g. GB-ENG, GB-SCT for GBR)
-        if iso2:
-            prefix = f"{iso2}-"
-            for os_key, os_items in opensanctions_data.items():
-                if os_key.startswith(prefix) and isinstance(os_items, list):
-                    for item in os_items:
-                        clean = str(item).strip().upper()
-                        if clean:
-                            aliases.add(clean)
-
-        # Special handling for Kosovo (XK / XKX in OpenSanctions)
-        if iso3 == "KOS":
-            for xk_key in ("XK", "XKX"):
-                if xk_key in opensanctions_data and isinstance(opensanctions_data[xk_key], list):
-                    for item in opensanctions_data[xk_key]:
-                        clean = str(item).strip().upper()
-                        if clean:
-                            aliases.add(clean)
-
-        return sorted(aliases)
-
-    @classmethod
-    def from_sources(
-        cls,
-        c: dict[str, Any],
-        geom_map: dict[str, Any],
-        wb_profiles: dict[str, dict[str, Any]],
-        opensanctions_data: dict[str, Any],
-        transformer: pyproj.Transformer,
-    ) -> "CountryRecord | None":
-        """Compiles a single ``CountryRecord`` from raw mledoze, Natural Earth, and World Bank sources.
-
-        Args:
-            c: Raw ``mledoze/countries`` dictionary entry.
-            geom_map: Mapping from ISO3 codes to Shapely polygon geometries.
-            wb_profiles: Mapping from ISO3 codes to World Bank socioeconomic indicator dictionaries.
-            opensanctions_data: Parsed OpenSanctions alias dictionary.
-            transformer: PyProj coordinate transformer from ``EPSG:4326`` to ``EPSG:3857``.
-
-        Returns:
-            A populated ``CountryRecord`` instance, or ``None`` if the record has no valid 3-letter ISO3 code.
-        """
-        iso3 = str(c.get("cca3", "")).strip().upper()
-        if iso3 == "UNK":
-            iso3 = "KOS"
-        if not iso3 or len(iso3) != 3:
-            return None
-
-        iso2 = str(c.get("cca2", "")).strip().upper()
-        numeric = str(c.get("ccn3", "")).strip()
-        name = str(c.get("name", {}).get("common", "")).strip()
-        official_name = str(c.get("name", {}).get("official", "")).strip()
-        region = str(c.get("region", "")).strip()
-        subregion = str(c.get("subregion", "")).strip()
-        latlng = c.get("latlng", [0.0, 0.0])
-        lat = float(latlng[0]) if len(latlng) > 0 else 0.0
-        lon = float(latlng[1]) if len(latlng) > 1 else 0.0
-        population = int(c.get("population", 0))
-
-        # Dynamic World Bank profile attributes
-        wb = wb_profiles.get(iso3, {})
-        life_exp = wb.get("life_expectancy")
-        life_exp_val = float(life_exp) if life_exp is not None else None
-        life_exp_yr = str(wb.get("life_expectancy_year") or "")
-        income_lvl = str(wb.get("income_level") or "")
-        income_code = str(wb.get("income_level_code") or "")
-        lending_type = str(wb.get("lending_type") or "")
-        capital = str(wb.get("capital_city") or (c.get("capital", [""])[0] if c.get("capital") else ""))
-
-        aliases = cls.extract_aliases(c, iso3, iso2, opensanctions_data)
-
-        geom = geom_map.get(iso3)
-        if geom is None:
-            # Fallback to centroid buffered by ~0.15 degrees (~16 km) for microstates not in Natural Earth
-            geom = Point(lon, lat).buffer(0.15)
-
-        area = float(shapely.ops.transform(transformer.transform, geom).area)
-        wkb_bytes = shapely.to_wkb(geom)
-
-        return cls(
-            iso3=iso3,
-            iso2=iso2,
-            numeric=numeric,
-            name=name,
-            official_name=official_name,
-            region=region,
-            subregion=subregion,
-            continent=region,
-            centroid_lat=lat,
-            centroid_lon=lon,
-            population=population,
-            life_expectancy=life_exp_val,
-            life_expectancy_year=life_exp_yr,
-            income_level=income_lvl,
-            income_level_code=income_code,
-            lending_type=lending_type,
-            capital_city=capital,
-            aliases=aliases,
-            geometry=wkb_bytes,
-            geometry_area=area,
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class CountryData(LoadedData):
+class CountryData(DataModel):
     """Container for global geographic boundaries, country metadata, and reverse geocoding.
 
-    Zero-payload by default. Assets are fetched and compiled on demand via ``build()``
-    and saved locally to ``~/.seroepi/data/countries.joblib``.
+    Backed by the static ``src/seroepi/assets/countries.joblib`` package asset and cached in
+    memory on first access via ``CountryData.load()``.
 
     Attributes:
         data: Polars ``DataFrame`` containing one row per country with ISO codes, UN regions,
@@ -256,27 +39,14 @@ class CountryData(LoadedData):
 
     Examples:
         >>> from seroepi.country import CountryData
-        >>> cd = CountryData.ensure()
+        >>> cd = CountryData.load()
         >>> cd.resolve_iso3("United Kingdom")
         'GBR'
         >>> cd.lookup("GBR", "continent")
         'Europe'
     """
 
-    FILENAME: ClassVar[str] = "countries.joblib"
-    DIR_ENV_VAR: ClassVar[str] = "SEROEPI_DATA_DIR"
-    DEFAULT_SUBDIR: ClassVar[str] = "data"
-
-    DEFAULT_NE_COUNTRIES_URL: ClassVar[str] = (
-        "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
-    )
-    DEFAULT_NE_TINY_COUNTRIES_URL: ClassVar[str] = (
-        "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_tiny_countries.zip"
-    )
-    DEFAULT_MLEDOZE_URL: ClassVar[str] = "https://raw.githubusercontent.com/mledoze/countries/master/countries.json"
-    DEFAULT_OPENSANCTIONS_URL: ClassVar[str] = (
-        "https://raw.githubusercontent.com/opensanctions/countrynames/main/countrynames/data.yaml"
-    )
+    ASSET_PATH: ClassVar[Path] = Path(__file__).resolve().parent / "assets" / "countries.joblib"
 
     VARIABLES: ClassVar[Mapping[str, Variable]] = {
         "iso3": Identifier(column="iso3"),
@@ -306,8 +76,6 @@ class CountryData(LoadedData):
         dict[tuple[Spatial.Resolution, bool], tuple[list[dict[str, Any]], dict[str, shapely.Geometry], dict[str, str]]]
     ] = {}
 
-    _data_path: Path | None = field(default=None, repr=False, compare=False)
-
     # In-memory spatial and alias caches (slotted in frozen dataclass)
     _aliases_df: pl.DataFrame | None = field(default=None, repr=False, compare=False)
     _tree_4326: shapely.STRtree | None = field(default=None, repr=False, compare=False)
@@ -319,99 +87,30 @@ class CountryData(LoadedData):
 
     @classmethod
     def load(cls, source: Path | str | bytes | io.BytesIO | None = None) -> Self:
-        """Loads ``CountryData`` from local Joblib storage and caches the singleton instance.
+        """Loads ``CountryData`` from the bundled package asset or a custom Joblib source.
+
+        When ``source`` is ``None``, returns the process-wide in-memory singleton loaded from
+        ``ASSET_PATH``.
 
         Args:
-            source: Optional custom path, bytes, or ``BytesIO`` buffer. Defaults to ``get_default_path()``.
+            source: Optional custom path, bytes, or ``BytesIO`` buffer. Defaults to ``ASSET_PATH``.
 
         Returns:
             The loaded ``CountryData`` instance.
 
         Raises:
-            FileNotFoundError: If the local Joblib file does not exist.
+            FileNotFoundError: If the target Joblib file does not exist.
         """
+        if source is None:
+            if not isinstance(cls._instance, cls):
+                cls._instance = super().load(cls.ASSET_PATH)
+                cls._spatial_features_cache.clear()
+            return cls._instance
+
         instance = super().load(source)
-        if isinstance(source, (str, Path)):
-            object.__setattr__(instance, "_data_path", Path(source))
-        elif source is None:
-            object.__setattr__(instance, "_data_path", cls.get_default_path())
         cls._instance = instance
         cls._spatial_features_cache.clear()
         return instance
-
-    @classmethod
-    def get_instance(cls, path: Path | str | None = None) -> "CountryData":
-        """Returns the cached singleton ``CountryData`` instance, loading from disk if needed.
-
-        Args:
-            path: Optional custom path to ``countries.joblib``.
-
-        Returns:
-            The singleton ``CountryData`` instance.
-
-        Raises:
-            FileNotFoundError: If the asset has not been compiled via ``CountryData.build()``.
-        """
-        target = Path(path) if path else cls.get_default_path()
-        if cls._instance is None or cls._instance._data_path != target:
-            if cls.is_built(target):
-                instance = cls.load(target)
-                object.__setattr__(instance, "_data_path", target)
-                cls._instance = instance
-                return instance
-            return cls.build(out_path=target)
-        return cls._instance
-
-    @classmethod
-    def build(
-        cls,
-        out_path: Path | str | None = None,
-        force: bool = False,
-        ne_countries_url: str = DEFAULT_NE_COUNTRIES_URL,
-        ne_tiny_countries_url: str = DEFAULT_NE_TINY_COUNTRIES_URL,
-        mledoze_url: str = DEFAULT_MLEDOZE_URL,
-        opensanctions_url: str = DEFAULT_OPENSANCTIONS_URL,
-        **kwargs: Any,
-    ) -> Self:
-        """Downloads and compiles the ``CountryData`` container into ``out_path``.
-
-        Args:
-            out_path: Optional output file path. Defaults to ``~/.seroepi/data/countries.joblib``.
-            force: Whether to rebuild even if ``out_path`` already exists.
-            ne_countries_url: URL for Natural Earth 110m Admin-0 countries shapefile zip.
-            ne_tiny_countries_url: URL for Natural Earth 110m tiny countries shapefile zip.
-            mledoze_url: URL for ``mledoze/countries`` JSON metadata.
-            opensanctions_url: URL for OpenSanctions country name aliases YAML.
-            **kwargs: Additional keyword arguments forwarded to ``compile()``.
-
-        Returns:
-            The compiled and persisted ``CountryData`` instance.
-        """
-        target = Path(out_path) if out_path else cls.get_default_path()
-        instance = super().build(
-            out_path=target,
-            force=force,
-            ne_countries_url=ne_countries_url,
-            ne_tiny_countries_url=ne_tiny_countries_url,
-            mledoze_url=mledoze_url,
-            opensanctions_url=opensanctions_url,
-            **kwargs,
-        )
-        object.__setattr__(instance, "_data_path", target)
-        cls._instance = instance
-        cls._spatial_features_cache.clear()
-        return instance
-
-    @classmethod
-    def clear(cls, path: Path | str | None = None) -> None:
-        """Deletes the compiled ``countries.joblib`` file from disk and resets all singleton caches.
-
-        Args:
-            path: Optional custom path to remove. Defaults to ``get_default_path()``.
-        """
-        super().clear(path)
-        cls._instance = None
-        cls._spatial_features_cache.clear()
 
     @property
     def aliases_df(self) -> pl.DataFrame:
@@ -717,153 +416,3 @@ class CountryData(LoadedData):
         )
 
         return df.join(lookup_df, on=[lat_col, lon_col], how="left")
-
-    @staticmethod
-    async def _fetch_sources(
-        ne_countries_url: str,
-        ne_tiny_countries_url: str,
-        mledoze_url: str,
-        opensanctions_url: str,
-    ) -> tuple[bytes, bytes, list[dict[str, Any]], dict[str, Any], dict[str, dict[str, Any]]]:
-        """Concurrently fetches Natural Earth shapefiles, mledoze JSON, OpenSanctions YAML, and World Bank profiles."""
-        import aiohttp
-
-        headers = {"User-Agent": "SeroEpi/1.0"}
-        async with aiohttp.ClientSession(headers=headers) as session:
-
-            async def fetch_bytes(url: str) -> bytes:
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        raise RuntimeError(f"Failed to fetch {url}: HTTP {response.status}")
-                    return await response.read()
-
-            wb_client = WorldBankClient()
-            try:
-                ne_c_bytes, ne_t_bytes, ml_bytes, os_bytes, wb_profiles = await asyncio.gather(
-                    fetch_bytes(ne_countries_url),
-                    fetch_bytes(ne_tiny_countries_url),
-                    fetch_bytes(mledoze_url),
-                    fetch_bytes(opensanctions_url),
-                    wb_client.get_country_profiles(),
-                )
-            finally:
-                await wb_client.close()
-
-            mledoze_data = json.loads(ml_bytes.decode("utf-8"))
-            opensanctions_data = yaml.safe_load(os_bytes.decode("utf-8"))
-            return ne_c_bytes, ne_t_bytes, mledoze_data, opensanctions_data, wb_profiles
-
-    @staticmethod
-    def _extract_geometries(ne_countries_bytes: bytes, ne_tiny_bytes: bytes) -> dict[str, Any]:
-        """Extracts sovereign and microstate country geometries from Natural Earth shapefiles."""
-        geom_map: dict[str, Any] = {}
-
-        # 1. Read Natural Earth sovereign shapefile
-        _, table_countries = pyogrio.read_arrow(io.BytesIO(ne_countries_bytes))
-        adm0_list = table_countries["ADM0_A3"].to_pylist() if "ADM0_A3" in table_countries.column_names else []
-        iso_list = table_countries["ISO_A3"].to_pylist() if "ISO_A3" in table_countries.column_names else []
-        wkb_list = table_countries["wkb_geometry"].to_pylist()
-        geoms = shapely.from_wkb(wkb_list)
-
-        for i in range(table_countries.num_rows):
-            if geoms[i] is None:
-                continue
-            for candidate in (
-                str(iso_list[i]).strip().upper() if iso_list else "",
-                str(adm0_list[i]).strip().upper() if adm0_list else "",
-            ):
-                if candidate and candidate not in ("-99", "", "NONE") and candidate not in geom_map:
-                    geom_map[candidate] = geoms[i]
-
-        # 2. Enrich microstates with Natural Earth tiny countries
-        _, table_tiny = pyogrio.read_arrow(io.BytesIO(ne_tiny_bytes))
-        adm0_tiny = table_tiny["ADM0_A3"].to_pylist() if "ADM0_A3" in table_tiny.column_names else []
-        sov_tiny = table_tiny["SOV_A3"].to_pylist() if "SOV_A3" in table_tiny.column_names else []
-        wkb_tiny = table_tiny["wkb_geometry"].to_pylist()
-        geoms_tiny = shapely.from_wkb(wkb_tiny)
-
-        for i in range(table_tiny.num_rows):
-            iso = str(adm0_tiny[i] if adm0_tiny else (sov_tiny[i] if sov_tiny else "")).strip().upper()
-            if iso and iso not in ("-99", "", "NONE") and geoms_tiny[i] is not None and iso not in geom_map:
-                geom_map[iso] = geoms_tiny[i].buffer(0.15)
-
-        return geom_map
-
-    @classmethod
-    def compile(
-        cls,
-        ne_countries_url: str = DEFAULT_NE_COUNTRIES_URL,
-        ne_tiny_countries_url: str = DEFAULT_NE_TINY_COUNTRIES_URL,
-        mledoze_url: str = DEFAULT_MLEDOZE_URL,
-        opensanctions_url: str = DEFAULT_OPENSANCTIONS_URL,
-    ) -> Self:
-        """Fetches remote data, compiles ``CountryRecord`` instances, and builds ``CountryData`` with pre-warmed caches.
-
-        Args:
-            ne_countries_url: URL for Natural Earth 110m Admin-0 countries shapefile zip.
-            ne_tiny_countries_url: URL for Natural Earth 110m tiny countries shapefile zip.
-            mledoze_url: URL for ``mledoze/countries`` JSON metadata.
-            opensanctions_url: URL for OpenSanctions country name aliases YAML.
-
-        Returns:
-            Compiled ``CountryData`` instance with pre-built ``STRtree`` and ``aliases_df``.
-        """
-
-        def _run_fetch() -> tuple[bytes, bytes, list[dict[str, Any]], dict[str, Any], dict[str, dict[str, Any]]]:
-            return asyncio.run(
-                cls._fetch_sources(
-                    ne_countries_url=ne_countries_url,
-                    ne_tiny_countries_url=ne_tiny_countries_url,
-                    mledoze_url=mledoze_url,
-                    opensanctions_url=opensanctions_url,
-                )
-            )
-
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
-
-        if running_loop and running_loop.is_running():
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                ne_c_bytes, ne_t_bytes, mledoze_data, opensanctions_data, wb_profiles = pool.submit(_run_fetch).result()
-        else:
-            ne_c_bytes, ne_t_bytes, mledoze_data, opensanctions_data, wb_profiles = _run_fetch()
-        geom_map = cls._extract_geometries(ne_c_bytes, ne_t_bytes)
-        transformer = pyproj.Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-
-        records: list[CountryRecord] = []
-        seen_iso3: set[str] = set()
-
-        for c in mledoze_data:
-            rec = CountryRecord.from_sources(c, geom_map, wb_profiles, opensanctions_data, transformer)
-            if rec is not None and rec.iso3 not in seen_iso3:
-                seen_iso3.add(rec.iso3)
-                records.append(rec)
-
-        df = pl.DataFrame([asdict(r) for r in records])
-
-        # Pre-warm spatial STRtree index & aliases DataFrame for 0ms cold-start query latency
-        iso3s = df["iso3"].to_list()
-        areas = df["geometry_area"].to_list()
-        geoms = shapely.from_wkb(df["geometry"].to_list())
-        tree_4326 = shapely.STRtree(geoms)
-
-        aliases_df = (
-            df.select(["iso3", "aliases"])
-            .explode("aliases", empty_as_null=True)
-            .filter(pl.col("aliases").is_not_null())
-            .select([pl.col("aliases").str.to_uppercase().alias("alias"), pl.col("iso3")])
-            .unique(subset=["alias"], keep="first")
-        )
-
-        return cls(
-            data=df,
-            variables=dict(cls.VARIABLES),
-            name="country_data",
-            _aliases_df=aliases_df,
-            _tree_4326=tree_4326,
-            _country_iso3s=iso3s,
-            _country_areas=areas,
-            _geoms_4326=geoms,
-        )

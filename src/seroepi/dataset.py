@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import Any, ClassVar, Self
 
 import polars as pl
 from sklearn.base import BaseEstimator, ClusterMixin
@@ -38,15 +39,51 @@ class Dataset(DataModel):
         distances: Optional sparse pairwise `GenomicDistances` graph attached to the isolates.
 
     Examples:
-        >>> from seroepi.examples import KlebnetNeonatalSepsis
-        >>> ds = KlebnetNeonatalSepsis.load()
+        >>> from seroepi.dataset import Dataset
+        >>> ds = Dataset.example()
         >>> qc_ds = ds.qc().filter(Region="Sub-Saharan Africa")
         >>> k_var = qc_ds.var("K_locus")
         >>> k_var.title
         'Capsule'
     """
 
+    EXAMPLE_ASSET_PATH: ClassVar[Path] = Path(__file__).resolve().parent / "assets" / "klebnet_neonatal_sepsis.joblib"
+    _EXAMPLE_CACHE: ClassVar[dict[bool, "Dataset"]] = {}
+
     distances: GenomicDistances | None = None
+
+    @classmethod
+    def example(cls, *, with_distances: bool = True) -> Self:
+        """Loads the bundled KlebNET Neonatal Sepsis benchmark dataset from package assets.
+
+        Caches the loaded ``Dataset`` in memory so subsequent calls return in O(1) time.
+
+        Args:
+            with_distances: Whether to retain the attached pairwise genomic distance matrix.
+
+        Returns:
+            The bundled KlebNET Neonatal Sepsis ``Dataset`` instance.
+        """
+        cached = cls._EXAMPLE_CACHE.get(with_distances)
+        if isinstance(cached, cls):
+            return cached
+
+        full_ds = cls._EXAMPLE_CACHE.get(True)
+        if not isinstance(full_ds, cls):
+            full_ds = cls.load(cls.EXAMPLE_ASSET_PATH)
+            cls._EXAMPLE_CACHE[True] = full_ds
+
+        if not with_distances and full_ds.distances is not None:
+            stripped = cls(
+                data=full_ds.data,
+                variables=full_ds.variables,
+                name=full_ds.name,
+                distances=None,
+            )
+            cls._EXAMPLE_CACHE[False] = stripped
+            return stripped
+
+        return full_ds
 
     def __post_init__(self) -> None:
         """Synchronizes variable dtypes and validates that exactly one Identifier variable exists."""
@@ -646,7 +683,7 @@ class Dataset(DataModel):
             lat_col: Name of latitude column.
             lon_col: Name of longitude column.
             output_col: Name of the resulting country column to create.
-            country_data: Optional CountryData instance. If None, uses CountryData.get_instance().
+            country_data: Optional CountryData instance. If None, uses CountryData.load().
             fallback_nearest_km: Distance tolerance in km to match coastal points to nearest country.
 
         Returns:
@@ -654,7 +691,7 @@ class Dataset(DataModel):
         """
         from seroepi.country import CountryData
 
-        cd = country_data or (CountryData.get_instance() if CountryData.is_built() else CountryData.build())
+        cd = country_data or CountryData.load()
         latname = self.var(lat_col).column if lat_col in self.variables else lat_col
         lonname = self.var(lon_col).column if lon_col in self.variables else lon_col
 
@@ -684,14 +721,14 @@ class Dataset(DataModel):
 
         Args:
             country_col: Column name containing country names or ISO3 codes.
-            country_data: Optional CountryData instance. If None, uses CountryData.get_instance().
+            country_data: Optional CountryData instance. If None, uses CountryData.load().
 
         Returns:
             New Dataset enriched with spatial metadata columns.
         """
         from seroepi.country import CountryData
 
-        cd = country_data or (CountryData.get_instance() if CountryData.is_built() else CountryData.build())
+        cd = country_data or CountryData.load()
         actual_col = self.var(country_col).column if country_col in self.variables else country_col
 
         metadata_cols = [

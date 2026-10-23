@@ -4,11 +4,10 @@ from typing import ClassVar
 
 import polars as pl
 
-from seroepi.io.dataset.base import DatasetParser
+from seroepi.io.dataset.base import DatasetParser, PathogenWatchFile
 from seroepi.variables import (
     QC,
     Count,
-    Identifier,
     Resistance,
     Taxonomy,
     Trait,
@@ -17,10 +16,11 @@ from seroepi.variables import (
 )
 
 
-class KleborateParser(DatasetParser):
+class KleborateParser(PathogenWatchFile, DatasetParser):
     """Parser for Kleborate genotype outputs mapping raw columns to canonical SeroEpi ``Variable`` descriptors.
 
     Attributes:
+        download_type: Pathogenwatch analysis download identifier (``"kleborate"``).
         variables: Canonical tuple of ``Identifier``, ``Taxonomy``, ``QC``, ``Count``, ``Trait``,
             ``Virulence``, and ``Resistance`` variables for Kleborate v2/v3 tables.
 
@@ -33,11 +33,9 @@ class KleborateParser(DatasetParser):
         'Capsule'
     """
 
+    download_type: ClassVar[str | None] = "kleborate"
     variables: ClassVar[tuple[Variable, ...]] = (
-        # Primary isolate identifier
-        Identifier("Genome Name"),
-        # Metadata / internal columns
-        Variable("Genome ID"),
+        # Tool metadata columns (Genome Name + Genome ID provided by PathogenWatchFile)
         Variable("Kleborate version"),
         Variable("Wrapper version"),
         # Taxonomy & QC

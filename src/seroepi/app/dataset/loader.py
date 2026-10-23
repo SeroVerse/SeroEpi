@@ -16,9 +16,16 @@ from seroepi.app.models import SessionState
 from seroepi.client.pathogenwatch import PathogenwatchClient, PathogenwatchCollection
 from seroepi.dataset import Dataset
 from seroepi.dist import GenomicDistances
-from seroepi.examples import ExampleDataset, KlebnetNeonatalSepsis
 from seroepi.io.dataset.base import DatasetParser
+from seroepi.io.dataset.kaptive import KaptiveParser, PathogenWatchKaptiveParser
 from seroepi.io.dataset.kleborate import KleborateParser
+from seroepi.io.dataset.pathogenwatch import (
+    MLSTParser,
+    PathogenWatchCoreParser,
+    PathogenWatchLINCodeParser,
+    PathogenWatchMLSTParser,
+    PathogenWatchPlasmidFinderParser,
+)
 from seroepi.io.dist import (
     DistanceParser,
     NewickDistanceParser,
@@ -30,8 +37,14 @@ from seroepi.variables import Identifier, Variable
 
 # Ensure built-in concrete implementations are imported so __subclasses__() discovers them
 _ = (
-    KlebnetNeonatalSepsis,
     KleborateParser,
+    KaptiveParser,
+    PathogenWatchKaptiveParser,
+    MLSTParser,
+    PathogenWatchCoreParser,
+    PathogenWatchMLSTParser,
+    PathogenWatchLINCodeParser,
+    PathogenWatchPlasmidFinderParser,
     NewickDistanceParser,
     PathogenwatchDistanceParser,
     SquareDistanceParser,
@@ -42,20 +55,23 @@ _ = (
 class DatasetLoader(Component[SessionState]):
     """Multi-source dataset ingestion (Example, Tabular Schema Upload, .joblib, Pathogenwatch).
 
-    Discovers concrete subclasses of `ExampleDataset`, `DatasetParser`, and `DistanceParser`
-    dynamically via `__subclasses__()` and provides reactive ingestion workflows for each source.
+    Discovers concrete subclasses of `DatasetParser` and `DistanceParser` dynamically via
+    `__subclasses__()` and provides reactive ingestion workflows for each source.
 
     Attributes:
         peeked_columns (tuple[str, ...]): Column names peeked from the most recently uploaded tabular file.
         pw_collections (tuple[PathogenwatchCollection, ...]): Cached Pathogenwatch collections available to the user.
-        pw_collections_loaded (bool): Flag indicating whether initial Pathogenwatch collection discovery has completed.
+        pw_collection_details (dict[str, Any]): Cached details (`downloads`, `organismName`) for the selected collection.
     """
+
+    DEFAULT_COLLECTION_UUID: ClassVar[str] = "myp3PKqcM1tiqWVmFcEVHn"
 
     peeked_columns: reactive_prop[tuple[str, ...]] = reactive_prop(())
     pw_collections: reactive_prop[tuple[PathogenwatchCollection, ...]] = reactive_prop(())
-    pw_collections_loaded: reactive_prop[bool] = reactive_prop(False)
+    pw_collection_details: reactive_prop[dict[str, Any]] = reactive_prop({})
 
     _PW_COLLECTION_CACHE: ClassVar[dict[str, tuple[PathogenwatchCollection, ...]]] = {}
+    _PW_DETAILS_CACHE: ClassVar[dict[str, dict[str, Any]]] = {}
 
     @staticmethod
     def _class_display_label(cls: type[Any], strip_suffix: str = "") -> str:
@@ -80,15 +96,6 @@ class DatasetLoader(Component[SessionState]):
         return found
 
     @classmethod
-    def example_registry(cls) -> dict[str, type[ExampleDataset]]:
-        """Returns all concrete `ExampleDataset` subclasses keyed by class name.
-
-        Returns:
-            Dictionary mapping subclass names to `ExampleDataset` classes.
-        """
-        return cls._discover_subclasses(ExampleDataset)
-
-    @classmethod
     def dataset_parser_registry(cls) -> dict[str, type[DatasetParser]]:
         """Returns all concrete `DatasetParser` subclasses keyed by class name.
 
@@ -111,76 +118,103 @@ class DatasetLoader(Component[SessionState]):
         }
 
     @classmethod
-    def default_collection_uuid(cls) -> str:
-        """Returns the default benchmark collection UUID from the first registered ExampleDataset.
-
-        Returns:
-            Collection UUID string, or `""` if none is defined.
-        """
-        return next(
-            (
-                str(getattr(c, "COLLECTION_UUID", ""))
-                for c in cls.example_registry().values()
-                if hasattr(c, "COLLECTION_UUID")
-            ),
-            "",
-        )
-
-    @classmethod
     async def fetch_cached_collections_async(
         cls,
-        api_key: str | None = None,
+        api_key: str,
         *,
         force_refresh: bool = False,
     ) -> tuple[PathogenwatchCollection, ...]:
         """Asynchronously fetches Pathogenwatch collections once per API key and caches them in memory.
 
         Args:
-            api_key: Optional Pathogenwatch API key for private/user collections.
+            api_key: Required Pathogenwatch API key.
             force_refresh: If `True`, bypasses the in-memory cache and re-queries the API.
 
         Returns:
             Tuple of `PathogenwatchCollection` metadata records.
+
+        Raises:
+            ValueError: If `api_key` is missing or blank.
         """
         clean_key = api_key.strip() if isinstance(api_key, str) else ""
-        cache_key = clean_key or "__default__"
-        if not force_refresh and cache_key in cls._PW_COLLECTION_CACHE:
-            return cls._PW_COLLECTION_CACHE[cache_key]
+        if not clean_key:
+            raise ValueError("A non-empty Pathogenwatch API key is required.")
+        if not force_refresh and clean_key in cls._PW_COLLECTION_CACHE:
+            return cls._PW_COLLECTION_CACHE[clean_key]
 
-        async with PathogenwatchClient(api_key=clean_key or None) as client:
+        async with PathogenwatchClient(api_key=clean_key) as client:
             fetched = tuple(await client.get_collections())
-        cls._PW_COLLECTION_CACHE[cache_key] = fetched
+        cls._PW_COLLECTION_CACHE[clean_key] = fetched
         return fetched
 
     @classmethod
     def fetch_cached_collections(
         cls,
-        api_key: str | None = None,
+        api_key: str,
         *,
         force_refresh: bool = False,
     ) -> tuple[PathogenwatchCollection, ...]:
         """Fetches Pathogenwatch collections once per API key and caches them in memory.
 
         Args:
-            api_key: Optional Pathogenwatch API key for private/user collections.
+            api_key: Required Pathogenwatch API key.
             force_refresh: If `True`, bypasses the in-memory cache and re-queries the API.
 
         Returns:
             Tuple of `PathogenwatchCollection` metadata records.
+
+        Raises:
+            ValueError: If `api_key` is missing or blank.
         """
         clean_key = api_key.strip() if isinstance(api_key, str) else ""
-        cache_key = clean_key or "__default__"
-        if not force_refresh and cache_key in cls._PW_COLLECTION_CACHE:
-            return cls._PW_COLLECTION_CACHE[cache_key]
+        if not clean_key:
+            raise ValueError("A non-empty Pathogenwatch API key is required.")
+        if not force_refresh and clean_key in cls._PW_COLLECTION_CACHE:
+            return cls._PW_COLLECTION_CACHE[clean_key]
 
-        with PathogenwatchClient(api_key=clean_key or None) as client:
+        with PathogenwatchClient(api_key=clean_key) as client:
             fetched = tuple(client.get_collections_sync())
-        cls._PW_COLLECTION_CACHE[cache_key] = fetched
+        cls._PW_COLLECTION_CACHE[clean_key] = fetched
         return fetched
 
     @classmethod
+    async def fetch_cached_collection_details_async(
+        cls,
+        uuid: str,
+        api_key: str,
+        *,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        """Asynchronously fetches and caches `get_collection(uuid)` details (including available `downloads`).
+
+        Args:
+            uuid: Short UUID of the Pathogenwatch collection.
+            api_key: Required Pathogenwatch API key.
+            force_refresh: If `True`, bypasses the in-memory cache and re-queries the API.
+
+        Returns:
+            Collection details dictionary containing `downloads`, `analyses`, and `organismName`.
+
+        Raises:
+            ValueError: If `api_key` is missing or blank.
+        """
+        clean_uuid = uuid.strip()
+        if not clean_uuid:
+            return {}
+        clean_key = api_key.strip() if isinstance(api_key, str) else ""
+        if not clean_key:
+            raise ValueError("A non-empty Pathogenwatch API key is required.")
+        cache_key = f"{clean_key}:{clean_uuid}"
+        if not force_refresh and cache_key in cls._PW_DETAILS_CACHE:
+            return cls._PW_DETAILS_CACHE[cache_key]
+
+        async with PathogenwatchClient(api_key=clean_key) as client:
+            details = await client.get_collection(clean_uuid)
+        cls._PW_DETAILS_CACHE[cache_key] = details
+        return details
+
+    @classmethod
     def _render_ui(cls) -> Any:
-        example_choices = {name: cls._class_display_label(c) for name, c in cls.example_registry().items()}
         parser_choices = {
             **{name: cls._class_display_label(c, "Parser") for name, c in cls.dataset_parser_registry().items()},
             "generic": "Generic Tabular (Auto-infer Variables)",
@@ -193,10 +227,14 @@ class DatasetLoader(Component[SessionState]):
             shiny_ui.nav_panel(
                 "Example",
                 shiny_ui.div(
-                    shiny_ui.input_select(
-                        "example_select",
-                        "Benchmark Dataset",
-                        choices=example_choices,
+                    shiny_ui.div(
+                        shiny_ui.div("KlebNET Neonatal Sepsis", class_="fw-semibold small"),
+                        shiny_ui.div(
+                            "981 K. pneumoniae neonatal sepsis isolates bundled with Kleborate, Kaptive, "
+                            "LIN code, MLST & PlasmidFinder genotypes, metadata, and SNP distances.",
+                            class_="text-muted small mt-1",
+                        ),
+                        class_="p-2 mb-3 rounded border bg-body-tertiary",
                     ),
                     shiny_ui.input_switch(
                         "example_with_distances",
@@ -279,77 +317,118 @@ class DatasetLoader(Component[SessionState]):
             shiny_ui.nav_panel(
                 "Pathogenwatch",
                 shiny_ui.div(
-                    shiny_ui.output_ui("pw_collection_select_ui"),
                     shiny_ui.div(
                         shiny_ui.div(
                             shiny_ui.input_password(
                                 "pw_api_key",
-                                "API Key (Optional for public collections)",
+                                "Pathogenwatch API Key",
                             ),
                             class_="flex-grow-1",
                         ),
                         shiny_ui.input_action_button(
                             "btn_refresh_pw_collections",
-                            "Refresh",
-                            icon=Icon.lucide("refresh-cw", size=14),
+                            "Connect",
+                            icon=Icon.lucide("cloud-sync", size=14),
                             class_="btn-outline-secondary btn-sm mb-3",
                         ),
                         class_="d-flex align-items-end gap-2",
                     ),
-                    shiny_ui.input_text(
-                        "pw_dataset_name",
-                        "Custom Name (Optional)",
-                        placeholder="Defaults to collection title",
-                    ),
-                    shiny_ui.input_switch(
-                        "pw_with_metadata",
-                        "Fetch Spatiotemporal Metadata",
-                        value=True,
-                    ),
-                    shiny_ui.input_switch(
-                        "pw_with_distances",
-                        "Fetch Pairwise Distance Matrix",
-                        value=True,
-                    ),
-                    shiny_ui.input_select(
-                        "pw_matrix_type",
-                        "Distance Metric",
-                        choices={"difference": "SNP Difference", "score": "Score"},
-                    ),
-                    shiny_ui.input_action_button(
-                        "btn_load_pw",
-                        "Fetch from Pathogenwatch",
-                        icon=Icon.lucide("telescope", size=15),
-                        class_="btn-primary w-100 mt-2",
-                    ),
+                    shiny_ui.output_ui("pw_authenticated_ui"),
                     class_="mt-3",
                 ),
                 icon=Icon.lucide("telescope", size=14),
             ),
         )
 
-    @bind_effect()
-    async def _on_init_pw_collections(self) -> None:
-        """Asynchronously fetches available Pathogenwatch collections once per session on startup."""
-        with reactive.isolate():
-            if self.pw_collections_loaded:
-                return
-            api_key = self.val("pw_api_key")
+    @bind_effect("pw_api_key")
+    async def _on_api_key_changed(self) -> None:
+        """Fetches Pathogenwatch collections once a non-empty API key is entered, or clears state when blank."""
+        api_key = str(self.val("pw_api_key") or "").strip()
+        if not api_key:
+            self.pw_collections = ()
+            self.pw_collection_details = {}
+            return
         try:
             self.pw_collections = await self.fetch_cached_collections_async(api_key=api_key, force_refresh=False)
         except Exception:
             self.pw_collections = ()
-        finally:
-            self.pw_collections_loaded = True
 
     @bind_effect("btn_refresh_pw_collections")
     async def _on_refresh_pw_collections(self) -> None:
-        """Asynchronously refreshes the Pathogenwatch collection list when the user updates their API key."""
-        api_key = self.val("pw_api_key")
+        """Asynchronously refreshes the Pathogenwatch collection list using the provided API key."""
+        api_key = str(self.val("pw_api_key") or "").strip()
+        if not api_key:
+            self.notify("Please enter a Pathogenwatch API key first.", type_="warning")
+            return
         cols = await self.fetch_cached_collections_async(api_key=api_key, force_refresh=True)
         self.pw_collections = cols
-        self.pw_collections_loaded = True
+        uuid = str(self.val("pw_collection_uuid") or self.DEFAULT_COLLECTION_UUID).strip()
+        if uuid:
+            try:
+                self.pw_collection_details = await self.fetch_cached_collection_details_async(
+                    uuid, api_key=api_key, force_refresh=True
+                )
+            except Exception:
+                self.pw_collection_details = {}
         self.notify(f"Loaded {len(cols):,} Pathogenwatch collections.", type_="message")
+
+    @bind_effect("pw_collection_uuid", "pw_api_key")
+    async def _on_select_pw_collection(self) -> None:
+        """Asynchronously fetches collection details (`downloads` and `organismName`) when a collection is selected."""
+        api_key = str(self.val("pw_api_key") or "").strip()
+        if not api_key:
+            self.pw_collection_details = {}
+            return
+        uuid = str(self.val("pw_collection_uuid") or self.DEFAULT_COLLECTION_UUID).strip()
+        if not uuid:
+            self.pw_collection_details = {}
+            return
+        try:
+            self.pw_collection_details = await self.fetch_cached_collection_details_async(
+                uuid, api_key=api_key, force_refresh=False
+            )
+        except Exception:
+            self.pw_collection_details = {}
+
+    @bind_output(render.ui, "pw_authenticated_ui")
+    def render_pw_authenticated_ui(self) -> TagChild:
+        """Renders Pathogenwatch collection, analysis, and fetch controls only when an API key is provided."""
+        api_key = str(self.val("pw_api_key") or "").strip()
+        if not api_key:
+            return shiny_ui.div(
+                "Enter your Pathogenwatch API key above to browse collections and genotype analyses.",
+                class_="text-muted small p-2 rounded border bg-body-tertiary",
+            )
+        return shiny_ui.div(
+            shiny_ui.output_ui("pw_collection_select_ui"),
+            shiny_ui.output_ui("pw_analysis_select_ui"),
+            shiny_ui.input_text(
+                "pw_dataset_name",
+                "Custom Name (Optional)",
+                placeholder="Defaults to collection title",
+            ),
+            shiny_ui.input_switch(
+                "pw_with_metadata",
+                "Fetch Spatiotemporal Metadata",
+                value=True,
+            ),
+            shiny_ui.input_switch(
+                "pw_with_distances",
+                "Fetch Pairwise Distance Matrix",
+                value=True,
+            ),
+            shiny_ui.input_select(
+                "pw_matrix_type",
+                "Distance Metric",
+                choices={"difference": "SNP Difference", "score": "Score"},
+            ),
+            shiny_ui.input_action_button(
+                "btn_load_pw",
+                "Fetch from Pathogenwatch",
+                icon=Icon.lucide("telescope", size=15),
+                class_="btn-primary w-100 mt-2",
+            ),
+        )
 
     @bind_output(render.ui, "pw_collection_select_ui")
     def render_pw_collection_select_ui(self) -> TagChild:
@@ -359,7 +438,7 @@ class DatasetLoader(Component[SessionState]):
             UI fragment containing the collection selector and collection count summary.
         """
         cols = self.pw_collections
-        default_uuid = self.default_collection_uuid()
+        default_uuid = self.DEFAULT_COLLECTION_UUID
         with reactive.isolate():
             current_uuid = self.val("pw_collection_uuid")
         selected_uuid = current_uuid or default_uuid
@@ -393,21 +472,54 @@ class DatasetLoader(Component[SessionState]):
             shiny_ui.div(summary_str, class_="text-muted small mt-n2 mb-2"),
         )
 
+    @bind_output(render.ui, "pw_analysis_select_ui")
+    def render_pw_analysis_select_ui(self) -> TagChild:
+        """Renders the multi-select Genotype Analyses selector populated from the selected collection's `downloads`.
+
+        Returns:
+            UI fragment containing the multi-select `pw_analysis_types` input and available analysis summary.
+        """
+        details = self.pw_collection_details
+        raw_downloads = details.get("downloads", []) if isinstance(details, dict) else []
+        choices: dict[str, str] = {}
+        for d in raw_downloads:
+            if isinstance(d, dict) and d.get("name"):
+                name = str(d["name"]).strip().lower()
+                label = str(d.get("label") or d["name"]).strip()
+                if name:
+                    choices[name] = label
+
+        default_selected = list(PathogenwatchClient.default_analysis_types(raw_downloads))
+        org_name = str(details.get("organismName") or "").strip() if isinstance(details, dict) else ""
+        if choices:
+            meta_prefix = f"{org_name} · " if org_name else ""
+            caption = f"{meta_prefix}{len(choices)} analysis export{'s' if len(choices) != 1 else ''} available"
+        else:
+            caption = "Inspecting available collection analyses..."
+
+        return shiny_ui.div(
+            shiny_ui.input_selectize(
+                "pw_analysis_types",
+                "Genotype Analyses",
+                choices=choices,
+                selected=default_selected,
+                multiple=True,
+                options={
+                    "placeholder": "Select one or more genotype analyses...",
+                },
+            ),
+            shiny_ui.div(caption, class_="text-muted small mt-n2 mb-2"),
+        )
+
     @bind_task("btn_load_example", register_to="datasets")
     def task_load_example(self) -> Dataset:
-        """Loads or builds the selected benchmark `ExampleDataset`.
+        """Loads the bundled KlebNET Neonatal Sepsis benchmark `Dataset`.
 
         Returns:
             Loaded `Dataset` instance.
         """
-        examples = self.example_registry()
-        selected_key = str(self.val("example_select", ""))
-        example_cls = examples.get(selected_key) or next(iter(examples.values()))
         with_dist = bool(self.val("example_with_distances", True))
-        if example_cls.is_built():
-            return example_cls.load(with_distances=with_dist)
-        ds = example_cls.build()
-        return ds if with_dist else ds.with_distances(None)
+        return Dataset.example(with_distances=with_dist)
 
     @bind_task("btn_load_upload", register_to="datasets")
     async def task_load_upload(self) -> Dataset:
@@ -498,12 +610,14 @@ class DatasetLoader(Component[SessionState]):
             Fetched `Dataset` instance.
 
         Raises:
-            ValueError: If no Pathogenwatch collection UUID is selected.
+            ValueError: If no API key or Pathogenwatch collection UUID is provided.
         """
+        api_key = str(self.val("pw_api_key") or "").strip()
+        if not api_key:
+            raise ValueError("Please enter a Pathogenwatch API key first.")
         uuid = str(self.val("pw_collection_uuid", "")).strip()
         if not uuid:
             raise ValueError("Please select a Pathogenwatch collection.")
-        api_key = self.val("pw_api_key")
         custom_name = self.val("pw_dataset_name")
         if not custom_name:
             matched = next((c.name for c in self.pw_collections if c.uuid == uuid and c.name), None)
@@ -511,6 +625,7 @@ class DatasetLoader(Component[SessionState]):
         with_meta = bool(self.val("pw_with_metadata", True))
         with_dist = bool(self.val("pw_with_distances", True))
         matrix_type = self.val("pw_matrix_type", "difference")
+        analysis_types = self.val("pw_analysis_types", None)
 
         async with PathogenwatchClient(api_key=api_key) as client:
             return await client.fetch_collection_dataset(
@@ -519,6 +634,7 @@ class DatasetLoader(Component[SessionState]):
                 with_metadata=with_meta,
                 matrix_type=matrix_type,
                 dataset_name=custom_name,
+                analysis_types=analysis_types,
             )
 
     @bind_effect("upload_data_file", "upload_parser_mode")

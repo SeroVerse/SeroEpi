@@ -524,7 +524,7 @@ class Spatial(Variable):
 
         Args:
             strict: If `True`, unmatched country names become `None`. If `False`, retains trimmed input strings.
-            country_data: Optional `CountryData` instance. Defaults to `CountryData.get_instance()`.
+            country_data: Optional `CountryData` instance. Defaults to `CountryData.load()`.
 
         Returns:
             Polars expression resolving country strings to ISO3 codes.
@@ -532,7 +532,7 @@ class Spatial(Variable):
         from seroepi.country import CountryData
 
         try:
-            cd = country_data or CountryData.get_instance()
+            cd = country_data or CountryData.load()
             alias_df = cd.aliases_df
         except FileNotFoundError:
             return self.clean_expr()
@@ -570,7 +570,7 @@ class Spatial(Variable):
         from seroepi.country import CountryData
 
         try:
-            cd = country_data or CountryData.get_instance()
+            cd = country_data or CountryData.load()
         except FileNotFoundError:
             return self.clean_expr()
 
@@ -591,7 +591,7 @@ class Spatial(Variable):
         from seroepi.country import CountryData
 
         try:
-            cd = country_data or CountryData.get_instance()
+            cd = country_data or CountryData.load()
         except FileNotFoundError:
             return self.clean_expr()
 
@@ -1456,9 +1456,9 @@ class Target:
         title: Human-readable display label (defaults to `name`).
 
     Examples:
-        >>> from seroepi.examples import KlebnetNeonatalSepsis
+        >>> from seroepi.dataset import Dataset
         >>> from seroepi.variables import Criterion, Target
-        >>> ds = KlebnetNeonatalSepsis.load()
+        >>> ds = Dataset.example()
         >>> tgt = Target(
         ...     name="K_and_O",
         ...     title="Capsule + O-Antigen",

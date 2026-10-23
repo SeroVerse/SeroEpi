@@ -642,13 +642,16 @@ class TransmissionEstimator(StratifiedResultMixin, NearestNeighbors):
                     lon_arr = df_raw[lon_c].cast(pl.Float64, strict=False).fill_null(float("nan")).to_numpy()
                     return lat_arr, lon_arr
 
-            # If a COUNTRY spatial variable is present and CountryData is built, project centroids
+            # If a COUNTRY spatial variable is present, project centroids via CountryData
             country_vars = [s for s in explicit_spatial if s.resolution == Spatial.Resolution.COUNTRY]
             if country_vars:
                 from seroepi.country import CountryData
 
-                if CountryData.is_built():
-                    cd = CountryData.get_instance()
+                try:
+                    cd = CountryData.load()
+                except FileNotFoundError:
+                    cd = None
+                if cd is not None:
                     c_var = country_vars[0]
                     iso_df = df_raw.select(c_var.iso3_expr(strict=True, country_data=cd).alias("_iso3")).join(
                         cd.data.select(["iso3", "centroid_lat", "centroid_lon"]),

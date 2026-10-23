@@ -1,7 +1,7 @@
 ---
 title: seroepi.dataset & variables
 subtitle: Datasets, Semantic Variables, Distances, Clients & Parsers
-description: "API reference for seroepi.dataset, seroepi.variables, seroepi.models, seroepi.dist, seroepi.country, seroepi.examples, seroepi.client, and seroepi.io."
+description: "API reference for seroepi.dataset, seroepi.variables, seroepi.models, seroepi.dist, seroepi.country, seroepi.client, and seroepi.io."
 author: Tom Stanton
 icon: lucide/database
 comments: true
@@ -48,21 +48,11 @@ Immutable Polars-backed isolate containers, semantic variable hierarchy, multi-v
 
 ---
 
-## Benchmark Surveillance Cohorts (`seroepi.examples`)
-
-::: seroepi.examples
-
----
-
-## Asynchronous Surveillance & Demographic Clients (`seroepi.client`)
+## Asynchronous Surveillance Client (`seroepi.client`)
 
 ::: seroepi.client.base
 
 ::: seroepi.client.pathogenwatch
-
-::: seroepi.client.world_bank
-
-::: seroepi.client.settings
 
 ---
 
@@ -73,5 +63,9 @@ Immutable Polars-backed isolate containers, semantic variable hierarchy, multi-v
 ::: seroepi.io.dataset.base
 
 ::: seroepi.io.dataset.kleborate
+
+::: seroepi.io.dataset.kaptive
+
+::: seroepi.io.dataset.pathogenwatch
 
 ::: seroepi.io.dist

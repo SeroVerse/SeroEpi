@@ -15,6 +15,7 @@ from seroepi.io.base import BaseParser
 from seroepi.variables import (
     Identifier,
     Temporal,
+    Trait,
     Variable,
 )
 
@@ -108,6 +109,13 @@ class DatasetParser(BaseParser):
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Validates that subclasses declare a non-empty ``variables`` tuple with exactly one ``Identifier``."""
         super().__init_subclass__(**kwargs)
+        header_vars: tuple[Variable, ...] = getattr(cls, "header_variables", ())
+        if (
+            isinstance(cls.variables, tuple)
+            and header_vars
+            and not any(isinstance(v, Identifier) for v in cls.variables)
+        ):
+            cls.variables = (*header_vars, *cls.variables)
         if not cls.variables:
             raise TypeError(
                 f"Class '{cls.__name__}' must define a non-empty class attribute "
@@ -123,6 +131,21 @@ class DatasetParser(BaseParser):
                 f"{cls.__name__} must define exactly one Identifier variable, found {len(id_vars)}: "
                 f"{[v.column for v in id_vars]}"
             )
+        dl_type = getattr(cls, "download_type", None)
+        if isinstance(dl_type, str) and dl_type.strip():
+            PathogenWatchFile._DOWNLOAD_REGISTRY[dl_type.strip().lower()] = cls
+
+    @classmethod
+    def _preprocess_dataframe(cls, df: pl.DataFrame) -> pl.DataFrame:
+        """Optional hook to transform or collapse the raw DataFrame prior to ``Dataset`` assembly.
+
+        Args:
+            df: Raw parsed ``pl.DataFrame``.
+
+        Returns:
+            Preprocessed ``pl.DataFrame`` with one row per isolate.
+        """
+        return df
 
     @classmethod
     def schema(cls) -> pl.Schema:
@@ -440,6 +463,7 @@ class DatasetParser(BaseParser):
         blank_cols = [c for c in df.columns if not c.strip()]
         if blank_cols:
             df = df.drop(blank_cols)
+        df = cls._preprocess_dataframe(df)
 
         # Validate strictly one Identifier column exists in data
         id_vars = [v for v in effective_vars if isinstance(v, Identifier)]
@@ -463,3 +487,67 @@ class DatasetParser(BaseParser):
             name=dataset_name or str(uuid4()),
             variables=merged_vars,
         )
+
+
+class PathogenWatchFile:
+    """Mixin for Pathogenwatch CSV exports keyed by ``Genome Name`` and ``Genome ID``.
+
+    Automatically prepends ``Identifier("Genome Name")`` and ``Variable("Genome ID")``
+    to ``cls.variables`` on ``DatasetParser`` subclasses, registers ``download_type``
+    for automatic ``PathogenwatchClient`` dispatch, and provides ``prefix_variables()``
+    for multi-locus schemas such as Kaptive.
+
+    Attributes:
+        download_type: Optional Pathogenwatch analysis download identifier (e.g. ``"kleborate"``, ``"kaptive"``).
+        join_column: Relational join column across Pathogenwatch tables (``"Genome ID"``).
+        header_variables: Canonical ``(Identifier("Genome Name"), Variable("Genome ID"))`` tuple.
+    """
+
+    download_type: ClassVar[str | None] = None
+    join_column: ClassVar[str] = "Genome ID"
+    header_variables: ClassVar[tuple[Variable, ...]] = (
+        Identifier("Genome Name"),
+        Variable("Genome ID", dtype=pl.String(), title="Genome ID"),
+    )
+    _DOWNLOAD_REGISTRY: ClassVar[dict[str, type[DatasetParser]]] = {}
+
+    @classmethod
+    def parser_for_download(cls, download_type: str) -> type[DatasetParser] | None:
+        """Returns the registered ``DatasetParser`` subclass for ``download_type``, or ``None``.
+
+        Args:
+            download_type: Pathogenwatch analysis download name (e.g. ``"kleborate"``, ``"kaptive"``, ``"mlst"``).
+
+        Returns:
+            Registered ``DatasetParser`` subclass, or ``None`` if unregistered.
+        """
+        return cls._DOWNLOAD_REGISTRY.get(download_type.strip().lower())
+
+    @staticmethod
+    def prefix_variables(
+        variables: Sequence[Variable],
+        prefix: str,
+        trait_title: str | None = None,
+    ) -> tuple[Variable, ...]:
+        """Clones non-identifier ``Variable`` descriptors with a Pathogenwatch ``"<prefix>: "`` column prefix.
+
+        Args:
+            variables: Source ``Variable`` sequence (any ``Identifier`` entries are automatically skipped).
+            prefix: Pathogenwatch column prefix (e.g. ``"K locus"``, ``"O locus"``, ``"OC locus"``).
+            trait_title: Optional human-readable display title for ``Trait`` variables (e.g. ``"Capsule"``).
+
+        Returns:
+            Tuple of cloned ``Variable`` instances with prefixed column names and updated titles.
+        """
+        col_prefix = f"{prefix}: "
+        title_prefix = f"{trait_title} " if trait_title else f"{prefix} "
+        out: list[Variable] = []
+        for var in variables:
+            if isinstance(var, Identifier):
+                continue
+            new_col = f"{col_prefix}{var.column}"
+            if isinstance(var, Trait) and trait_title is not None:
+                out.append(var.copy(column=new_col, title=trait_title))
+            else:
+                out.append(var.copy(column=new_col, title=f"{title_prefix}{var.title}"))
+        return tuple(out)

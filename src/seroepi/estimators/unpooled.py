@@ -41,9 +41,9 @@ class UnpooledEstimator(BaseEstimator):
 
     Examples:
         >>> from seroepi.aggregate import Aggregator
-        >>> from seroepi.estimators import UnpooledEstimator
-        >>> from seroepi.examples import KlebnetNeonatalSepsis
-        >>> ds = KlebnetNeonatalSepsis.load()
+        >>> from seroepi.dataset import Dataset
+        >>> from seroepi.estimators.unpooled import UnpooledEstimator
+        >>> ds = Dataset.example()
         >>> agg = Aggregator(target=ds.var("K_locus"), strata=ds.var("Country")).fit(ds)
         >>> est = UnpooledEstimator(method="wilson", alpha=0.05).fit(agg)
         >>> est.ranked_targets(top_n=3)

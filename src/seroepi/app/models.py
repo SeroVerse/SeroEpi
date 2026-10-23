@@ -38,10 +38,10 @@ class SessionState(BaseSessionState):
     Examples:
         ```python
         from seroepi.app.models import SessionState
-        from seroepi.examples import KlebnetNeonatalSepsis
+        from seroepi.dataset import Dataset
 
         state = SessionState()
-        ds = KlebnetNeonatalSepsis.load()
+        ds = Dataset.example()
         state.register_dataset(ds)
         assert state.active_dataset is not None
         ```

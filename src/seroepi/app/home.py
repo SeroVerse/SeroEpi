@@ -17,13 +17,11 @@ from seroepi.aggregate import Aggregator
 from seroepi.app.caching import default_cache
 from seroepi.app.decorators import bind_altair
 from seroepi.app.models import SessionState
+from seroepi.dataset import Dataset
 from seroepi.estimators.base import BaseEstimator
 from seroepi.estimators.unpooled import UnpooledEstimator
-from seroepi.examples import ExampleDataset, KlebnetNeonatalSepsis
 from seroepi.plotting.bar import BarPlotter
 from seroepi.plotting.base import BasePlotter
-
-_ = KlebnetNeonatalSepsis  # Ensure subclass registration for ExampleDataset.__subclasses__()
 
 # ---------------------------------------------------------------------------
 # 1. Data-Oriented Configuration & Reactive Contracts
@@ -270,10 +268,23 @@ body {
 }
 
 .hero-cta-group {
-    display: flex;
-    flex-wrap: wrap;
+    display: inline-grid;
+    grid-template-columns: 1fr;
     gap: 0.75rem;
+}
+
+.hero-cta-group > .btn {
+    width: 100%;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+@container (min-width: 1120px) {
+    .hero-cta-group {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 .sv-btn-primary.btn {
@@ -488,14 +499,13 @@ class HomeTab(Tab[SessionState]):
 
     @classmethod
     def default_hero_estimator(cls) -> BaseEstimator:
-        """Returns a process-cached benchmark `UnpooledEstimator` fitted on the default `ExampleDataset`'s primary `Trait`.
+        """Returns a process-cached benchmark `UnpooledEstimator` fitted on `Dataset.example()`'s primary `Trait`.
 
         Returns:
             Fitted `BaseEstimator` instance for the default benchmark cohort.
         """
         if cls._DEFAULT_ESTIMATOR is None:
-            example_cls = ExampleDataset.__subclasses__()[0]
-            ds = example_cls.load() if example_cls.is_built() else example_cls.build()
+            ds = Dataset.example(with_distances=False)
             primary_trait = ds.pure_traits[0] if ds.pure_traits else next(iter(ds.variables.values()))
             agg = default_cache.fit_or_load(Aggregator(target=primary_trait), ds)
             est = default_cache.fit_or_load(UnpooledEstimator(name=f"Wilson ({ds.name})"), agg)

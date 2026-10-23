@@ -30,7 +30,6 @@ if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
 
 from seroepi.aggregate import Aggregator  # noqa: E402
-from seroepi.app.dataset.loader import DatasetLoader  # noqa: E402
 from seroepi.app.dataset.tab import DatasetTab  # noqa: E402
 from seroepi.app.estimation import EstimationTab  # noqa: E402
 from seroepi.app.footer import PackageMetadata, app_footer  # noqa: E402
@@ -38,6 +37,7 @@ from seroepi.app.formulation import FormulationTab  # noqa: E402
 from seroepi.app.home import HomeTab  # noqa: E402
 from seroepi.app.models import SessionState  # noqa: E402
 from seroepi.country import CountryData  # noqa: E402
+from seroepi.dataset import Dataset  # noqa: E402
 from seroepi.estimators.formulation import Formulation  # noqa: E402
 from seroepi.estimators.unpooled import UnpooledEstimator  # noqa: E402
 from seroepi.variables import Spatial, Target  # noqa: E402
@@ -124,8 +124,7 @@ def app_server(input: Inputs, output: Outputs, session: Session) -> None:
     @reactive.event(home_events.demo_clicked, ignore_init=True)
     def _on_hero_load_demo() -> None:
         req(home_events.demo_clicked() > 0)
-        example_cls = next(iter(DatasetLoader.example_registry().values()))
-        ds = example_cls.load() if example_cls.is_built() else example_cls.build()
+        ds = Dataset.example()
         state.register_dataset(ds, reset_filters=True)
         traits = ds.pure_traits
         for idx, trait in enumerate(traits):
@@ -167,7 +166,7 @@ def _warm_reference_assets() -> None:
         except Exception:
             pass
         try:
-            CountryData.get_instance()
+            CountryData.load()
         except Exception:
             pass
 

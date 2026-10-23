@@ -48,7 +48,7 @@ Built on `scikit-learn`, `Polars`, and `JAX`/`NumPyro`, **SeroEpi** transforms p
 
     ---
 
-    Ingests Pathogenwatch isolate collections (`PathogenwatchClient`) and UN/World Bank demographic indicators (`WorldBankClient`), enforces typed `Variable` contracts (`Spatial`, `Temporal`, `Trait`, `Target`), and composes multi-variable `Criterion` targets.
+    Ingests Pathogenwatch isolate collections (`PathogenwatchClient`) and UN/World Bank demographic indicators (`CountryData`), enforces typed `Variable` contracts (`Spatial`, `Temporal`, `Trait`, `Target`), and composes multi-variable `Criterion` targets.
 
 -   :lucide-layers: **Stratified Aggregation & Partial Pooling (`seroepi.aggregate`, `seroepi.estimators`)**
 
@@ -91,13 +91,13 @@ flowchart LR
 
 ```python
 from seroepi.aggregate import Aggregator
+from seroepi.dataset import Dataset
 from seroepi.estimators.formulation import Formulation
 from seroepi.estimators.hierarchical import HierarchicalSVIEstimator
-from seroepi.examples import KlebnetNeonatalSepsis
 from seroepi.plotting.choropleth import ChoroplethPlotter
 
 # 1. Load the KlebNET Neonatal Sepsis benchmark collection (981 K. pneumoniae isolates)
-ds = KlebnetNeonatalSepsis.ensure()
+ds = Dataset.example()
 
 # 2. Aggregate capsule K-locus counts across geographic strata
 agg = Aggregator(target=ds.var("K_locus"), strata=[ds.var("country")]).fit(ds)

@@ -8,10 +8,10 @@ from shiny.pytest import create_app_fixture
 
 from seroepi.aggregate import Aggregator
 from seroepi.country import CountryData
+from seroepi.dataset import Dataset
 from seroepi.dist import GenomicDistances
 from seroepi.estimators.hierarchical import HierarchicalSVIEstimator
 from seroepi.estimators.unpooled import UnpooledEstimator
-from seroepi.examples import KlebnetNeonatalSepsis
 from seroepi.variables import Spatial
 
 shiny_app = create_app_fixture(
@@ -44,34 +44,25 @@ def data_dir() -> Path:
 @pytest.fixture(scope="session")
 def country_data() -> CountryData:
     """Singleton CountryData loaded from countries.joblib."""
-    if not CountryData.is_built():
-        CountryData.build()
-    return CountryData.get_instance()
+    return CountryData.load()
 
 
 @pytest.fixture(scope="session")
-def klebnet_dataset() -> KlebnetNeonatalSepsis:
+def klebnet_dataset() -> Dataset:
     """Benchmark Klebnet neonatal sepsis dataset with distances attached."""
-    if not KlebnetNeonatalSepsis.is_built():
-        cassette_path = CASSETTES_DIR / "test_build_klebnet.yaml"
-        if cassette_path.exists():
-            with vcr.use_cassette(cassette_path, record_mode="none"):
-                KlebnetNeonatalSepsis.build()
-        else:
-            KlebnetNeonatalSepsis.build()
-    return KlebnetNeonatalSepsis.load(with_distances=True)
+    return Dataset.example(with_distances=True)
 
 
 @pytest.fixture(scope="session")
-def klebnet_distances(klebnet_dataset: KlebnetNeonatalSepsis) -> GenomicDistances:
+def klebnet_distances(klebnet_dataset: Dataset) -> GenomicDistances:
     """Parsed GenomicDistances from the benchmark 981x981 difference matrix."""
     assert klebnet_dataset.distances is not None
     return klebnet_dataset.distances
 
 
 @pytest.fixture(scope="session")
-def klebnet_aggregator(klebnet_dataset: KlebnetNeonatalSepsis) -> Aggregator:
-    """Canonical Capsule-by-Country padded Aggregator fitted on KlebnetNeonatalSepsis."""
+def klebnet_aggregator(klebnet_dataset: Dataset) -> Aggregator:
+    """Canonical Capsule-by-Country padded Aggregator fitted on the KlebNET example dataset."""
     k_var = klebnet_dataset.var("K_locus")
     country_var = Spatial("Country", title="Country", resolution=Spatial.Resolution.COUNTRY)
     return Aggregator(target=k_var, strata=country_var, pad_zeros=True).fit(klebnet_dataset)

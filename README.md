@@ -23,7 +23,7 @@
 
 ### Core Capabilities
 
-- 🗂️ **Surveillance Cohort Ingestion & Compositional Target Engineering (`Dataset`, `Variable`, `Target`, `Criterion`)**: Ingests Pathogenwatch isolate collections (`PathogenwatchClient`) and World Bank / UN demographic indicators (`WorldBankClient`), enforces strict typed variable contracts (`Identifier`, `Spatial`, `Temporal`, `Trait`, `Continuous`, `Categorical`), and composes multi-variable boolean or intersectional `Criterion` targets (`&`, `|`, `~`, `@`).
+- 🗂️ **Surveillance Cohort Ingestion & Compositional Target Engineering (`Dataset`, `Variable`, `Target`, `Criterion`)**: Ingests Pathogenwatch isolate collections (`PathogenwatchClient`) and World Bank / UN demographic indicators (`CountryData`), enforces strict typed variable contracts (`Identifier`, `Spatial`, `Temporal`, `Trait`, `Continuous`, `Categorical`), and composes multi-variable boolean or intersectional `Criterion` targets (`&`, `|`, `~`, `@`).
 - 🧬 **Stratified Aggregation & Outbreak De-Clonalization (`Aggregator`, `TransmissionEstimator`)**: Collapses isolate-level cohorts across arbitrary geographic, temporal, and clinical strata (`Aggregator`), clusters single-linkage SNP transmission complexes (`Dataset.cluster`), and fits exponential-decay genomic distance models (`TransmissionEstimator`) to mitigate local outbreak over-sampling bias.
 - 🧠 **Hierarchical Bayesian & Bootstrap Prevalence Modelling (`HierarchicalMCMCEstimator`, `HierarchicalSVIEstimator`, `BootstrapEstimator`, `UnpooledEstimator`)**: Fits closed-form unpooled intervals (`wilson`, `clopper-pearson`, `jeffreys`, `wald`), Dirichlet-weighted Bayesian Bootstraps (`BootstrapEstimator`), and partially pooled `JAX`/`NumPyro` Hierarchical Binomial and Beta-Binomial models via No-U-Turn Sampler MCMC (`HierarchicalMCMCEstimator`) or Stochastic Variational Inference (`HierarchicalSVIEstimator`).
 - 🛡️ **LOSO-Validated Multi-Valent Formulation & Differential Enrichment (`Formulation`, `FormulationComparison`)**: Ranks candidate targets under pooled or macro-averaged equal-stratum weights, evaluates minimum burden exceedance ($H_{0,j}: p_j \le \tau_{\min}$) with Bayesian posterior error probabilities or Benjamini-Hochberg FDR control, quantifies geographic generalizability via Leave-One-Stratum-Out (`cv="loso"`) cross-validation, and contrasts formulations across cohorts (`FormulationComparison.differential_enrichment()`).
@@ -53,14 +53,14 @@ pip install "seroepi[app]"
 
 ```python
 from seroepi.aggregate import Aggregator
+from seroepi.dataset import Dataset
 from seroepi.estimators.formulation import Formulation
 from seroepi.estimators.hierarchical import HierarchicalSVIEstimator
-from seroepi.examples import KlebnetNeonatalSepsis
 from seroepi.plotting.choropleth import ChoroplethPlotter
 from seroepi.plotting.formulation import FormulationPlotter
 
-# 1. Load (or auto-build) the KlebNET Neonatal Sepsis benchmark cohort (981 K. pneumoniae isolates)
-ds = KlebnetNeonatalSepsis.ensure()
+# 1. Load the bundled KlebNET Neonatal Sepsis benchmark cohort (981 K. pneumoniae isolates)
+ds = Dataset.example()
 
 # 2. Aggregate capsule K-locus counts across country strata
 agg = Aggregator(target=ds.var("K_locus"), strata=[ds.var("country")]).fit(ds)
